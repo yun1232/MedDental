@@ -1,0 +1,38 @@
+MedDental 精简版验证记录，2026-11-20
+基线：deepseek-harness-oral-memory.zip 当前版本 2。
+
+通过：
+- pnpm install --offline --frozen-lockfile --config.manage-package-manager-versions=false
+  保持 workspace、lockfile、依赖补丁；407 个 workspace。源码构建前存在 CLI bin 缺失提示。
+- pnpm test:oral
+  39 项 Python 测试、3 项 Node 启动测试、16,168 个原文件哈希检查。
+  真实 DSH MCP 工具发现/提示词/读写/患者轮次/状态/卸载通过。
+  医生表单 DOM 与真实 HTTP 提交通过。
+  患者 persona 替换编程身份、继承 MCP 记忆规则和卸载恢复通过。
+- 修改患者目录隔离后，再次执行 3 项启动测试，通过。
+- DSH_HOME=/tmp/oral-config-check ORAL_MEMORY_PATIENT_ID=synthetic node --import tsx/esm apps/cli/src/bin.ts web --patch apps/cli/config/examples/mcp-memory/oral-leukoplakia.cordis.yml --patch apps/cli/config/examples/mcp-memory/oral-patient.cordis.yml --dump-config
+  两层配置组合通过，不等于完整 Web 启动。
+- 新增启动器、预设检查程序和医生前端 JavaScript 语法检查通过。
+- 集成 README 双语配对记录已更新。
+
+框架定向测试：
+pnpm exec vitest run packages/core/system-prompt/tests packages/preset/persona/tests packages/mcp/mcp-client/tests
+18 个文件：16 通过、2 失败；311 项测试：309 通过、2 失败。
+失败位于 credentials.spec.ts、negotiation-lifecycle.spec.ts 的 HTTP 探测/重试。
+将失败套件以 maxWorkers=1、testTimeout=15000 单独复测：9 通过，相同 2 项失败。
+在未修改的原始解压目录用相同命令复测：同样 9 通过，相同 2 项失败。
+未通过删除、跳过或改写原测试来获得通过结果。
+
+构建阻塞：
+- pnpm run build：tsx CLI 创建 /tmp/tsx-1000/*.pipe 时 EPERM。
+- 使用 node --import tsx/esm 执行原构建脚本：源包没有 Git HEAD，git rev-parse HEAD 失败。
+- 直接检查原生构建：Node 安装缺少 include/node/node_api.h。
+- 直接执行 build:check：Host/Client 聚合失败，包含 TS6305 缺失未构建的 lib/types 声明。
+未禁用原生组件、伪造提交哈希、放宽类型检查或关闭沙箱。完整构建未计为通过。
+
+范围：
+交付是源码精简版，仍需在具备 Node 开发头文件与 Git 提交的开发环境构建。
+未验证真实模型问询、图像描述准确率或临床效果。
+医生入口仍是本机单患者 token 入口，未接医院登录。
+数据库 schema 与原业务算法未改版；已有 v2 数据继续使用。
+测试只使用合成数据；交付不含依赖、构建缓存、数据库、凭据或真实患者数据。

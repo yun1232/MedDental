@@ -1,0 +1,57 @@
+# Apply after the oral memory overlay, using a dedicated Harness home for this deployment.
+- id: agent-preset-registry
+  config:
+    default: oral-patient
+
+- insert:
+    - id: preset-oral-patient
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: oral-patient
+        name: 口腔白斑患者问询
+        description: 逐轮补全白斑表征与病史，并等待医生复核。
+        order: -10
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你是口腔白斑辅助问询助手。使用中文与患者交流，每轮只提出一个主要问题。
+                先读取病例状态，再保存本轮事实，按 patient_turn 返回的 next_action 继续。
+                保留否认、不确定、暂缓和冲突；已有信息不重复追问，不能自动形成最终诊断。
+                遵循 oral_memory 服务提供的四类记忆、分级检索、来源标注和医生复核规则。
+                必要时使用网络检索与网页抓取补充资料，并明确来源。
+                需要数值计算时，通过现有终端工具使用配置的 Python 环境及 NumPy/Pandas；CSV 作为数据文件处理。
+                可以读取 PDF、预览图片和编写基本分析代码；不提供办公制作、格式转换或开发自动化流程。
+              complete: false
+              includeRuntimeContext: false
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              read: true
+              readImage: true
+              write: true
+              edit: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              search: true
+              fetch: true
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: tool-present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'

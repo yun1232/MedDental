@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write integrations/oral-memory/README.md
+/:
+  en: fb6e877a41f16480
+  zh: f20b63859c957c9a
+/oral-leukoplakia-memory:
+  en: b0a49eed415f7b0f
+  zh: f9daedc7fec31137
+/oral-leukoplakia-memory/summary:
+  en: 959f853d5c669aab
+  zh: 26c5a7f7902ebabd
+/oral-leukoplakia-memory/contents:
+  en: dd63b8bc4a3dfbc5
+  zh: 92f8e1690a289ec6
+/oral-leukoplakia-memory/configuration:
+  en: 7d79402f0b6e7df2
+  zh: a78ebe5cfbd45a6c
+/oral-leukoplakia-memory/memory-and-retrieval:
+  en: 589e96c914e208e0
+  zh: 011e8d0814408c7f
+/oral-leukoplakia-memory/patient-communication-and-doctor-input:
+  en: 001eb612c0038a56
+  zh: 77a0b67f6e371ffb
+/oral-leukoplakia-memory/utility-and-low-frequency:
+  en: d913606dad4e656c
+  zh: b36bae82db83255a
+/oral-leukoplakia-memory/verification:
+  en: 198e27550144436d
+  zh: 150244eb1ee46df2
+/oral-leukoplakia-memory/limits:
+  en: a799a917cddc2d4f
+  zh: 062e10dbd025f5a2

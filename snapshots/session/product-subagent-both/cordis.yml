@@ -1,0 +1,28 @@
+# Add two named Codex providers, two named Claude Code providers, and the
+# independent one-shot tool rows an Agent Preset may contribute. Loading the
+# composition starts neither product; the scenario pins all four schemas.
+- insert:
+    - id: tool-subagent-codex-primary
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: codex-primary
+        toolName: subagent_codex_primary
+        maxDepth: provider-managed
+    - id: tool-subagent-codex-secondary
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: codex-secondary
+        toolName: subagent_codex_secondary
+        maxDepth: provider-managed
+    - id: tool-subagent-claude-primary
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: claude-primary
+        toolName: subagent_claude_primary
+        maxDepth: provider-managed
+    - id: tool-subagent-claude-secondary
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: claude-secondary
+        toolName: subagent_claude_secondary
+        maxDepth: provider-managed

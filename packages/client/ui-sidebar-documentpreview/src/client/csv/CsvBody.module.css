@@ -1,0 +1,3 @@
+.body { overflow: auto; height: 100%; padding: 12px; }
+.body table { border-collapse: collapse; font-size: 13px; }
+.body td { border: 1px solid var(--border-color, #9996); padding: 5px 8px; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 64px; max-width: 480px; }

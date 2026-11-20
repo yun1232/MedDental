@@ -1,0 +1,34 @@
+请接手 DeepSeek Harness 口腔白斑记忆与渐进问询系统 v2。先阅读 integrations/oral-memory/README.zh.md 和 MIGRATIONS.txt，沿用已有实现，避免重复创建。
+
+已实现的业务约束
+1. 四类长期记忆独立保存与检索：lesion 白斑表征、experience 口腔经历、care 诊疗经历、doctor 医生反馈。
+2. 白斑用 JSON 与 OLK/1 描述表示，记忆层不保存图片或图像向量；病理来自报告或医生，不能由图片推断。
+3. 不删除记忆。效用 U=(1+P)/(2+P+N)，新版本 0.5；曝光至少10次且效用低于0.3进入低频。无曝光不扣分。
+4. 模型只能报告真实提供记录的 used，不能自我加分。医生确认 helpful/not_helpful/unused_opportunity；同一检索机会只接受一次效用判断，重复去重，矛盾判断报错。
+5. 保持白斑相关性第一、诊疗相关性第二；只有相同相关组内才按效用和低频权重抽样，并保留探索机会。不能混合加权两级相关性。
+6. 未完成医生追问、当前诊断与冲突直接作为必读上下文；get 和明确历史查询不隐藏低频记录。
+7. 患者交流使用现有 DSH 对话模型；workflow.py 的 PatientCommunicationAgent 维护状态，返回一个下一步动作。区分未知、已知、否认、不确定、暂缓、冲突；限制追问次数，优先医生问题和冲突，患者自己提问时先回答。
+8. 每轮通过 case_state 和 patient_turn，带真实病例版本和唯一 event_id。程序保存观察及记忆，并返回一个下一步问题。患者回答不能覆盖医生已确认事实。
+9. 医生通过 doctor_portal.py 本地工作台输入补充、纠正、追问、诊断、频率及效用反馈。doctor_submit 可在同一事务更新意见、目标记忆和字段状态；患者侧不开放该工具。
+10. 医生问题绑定目标字段；收到回复不等于完成。充分回答且目标字段补齐才在有效队列中完成。无目标字段的任务交医生确认；医生原始意见保持，患者回答另存。
+
+修改位置
+- schemas.py server.py：工具、输入验证、角色可见性。
+- store.py：四类记忆、可组合事务、v1到v2新增表迁移。
+- extensions.py：检索回执、版本化统计、反馈审计、低频、同相关组抽样。
+- retrieval.py：两级召回与独立补充证据。
+- workflow.py questionnaire.json：问询状态、模板、逐步引导、医生联动与幂等。
+- doctor_portal.py web/doctor.html web/doctor.js web/doctor.css：医生输入工作台和token保护接口。
+- prompts/memory-policy.zh.txt：患者交流Agent操作提示词。
+- apps/cli/config/examples/mcp-memory/oral-leukoplakia.cordis.yml：现有MCP客户端接入。
+- tests：39项Python测试、真实DSH桥接、医生DOM与HTTP流程、已保存stdio问询回放。
+
+验证命令
+python3 -m unittest discover -s integrations/oral-memory/tests -v
+node --import tsx/esm integrations/oral-memory/tests/dsh-smoke.mjs
+node integrations/oral-memory/tests/doctor-dom-smoke.mjs
+
+接入
+患者侧设置 ORAL_MEMORY_PATIENT_ID、ORAL_MEMORY_ENCOUNTER_ID、ORAL_MEMORY_DB，再用现有 dsh web 加载 oral-leukoplakia.cordis.yml。
+医生侧使用相同患者和数据库，设置至少16字符的 ORAL_DOCTOR_TOKEN，运行 python3 integrations/oral-memory/doctor_portal.py --port 8765。
+本地医生入口不是医院账户系统，单实例绑定单患者。真实多模态描述、提取质量和自然交流还需配置实际模型后评估；当前是规则与提示词驱动，没有额外RL训练。
