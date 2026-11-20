@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects } from './compile-referenced-projects.ts'
-import { runCiBench } from './run-ci-bench.ts'
+
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 import { setPublishedFiles, writeTypertWorkspace } from './typert-workspace.fixture.ts'
 
@@ -104,7 +104,6 @@ describe('internal artifact build order', () => {
     const expected = [
       ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
       ...hostOnly ? [] : [
-        ['--filter', '@deepseek-ai/dsh-desktop', 'run', 'bundle'],
         ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'],
       ],
     ]
@@ -136,7 +135,7 @@ describe('internal artifact build order', () => {
     ])
   })
 
-  it('stops after a failed Host bundler before Desktop and Client builds', () => {
+  it('stops after a failed Host bundler before Client builds', () => {
     const { root } = fixture()
     const commands = recordedCommands(root, true)
 
@@ -144,26 +143,7 @@ describe('internal artifact build order', () => {
     expect(commands()).toHaveLength(1)
   })
 
-  it('defers benchmark diagnostics while normal artifact builds reject the same source', () => {
-    const { root, leaf } = fixture()
-    const commands = recordedCommands(root)
-    writeFileSync(join(leaf, 'src/index.ts'), 'export const value: number = "invalid"\n')
 
-    runCiBench(root)
-
-    expect(commands()).toEqual([
-      ['run', 'build:native-system'],
-      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
-      ['--filter', '@deepseek-ai/dsh-desktop', 'run', 'bundle'],
-      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'],
-      ['exec', 'tsdown', '--config-loader', 'native', '--config', 'benchmarks/tsdown.config.ts'],
-      ['run', 'build:web'],
-      ['run', 'test:bench:built'],
-    ].map(args => ({ args, title: 'Inherited Build Title' })))
-
-    expect(() => { buildLibraryArtifacts(root, false) }).toThrow('host compiler exited with')
-    expect(commands()).toHaveLength(7)
-  })
 })
 
 describe('bundle-free Host contracts', { timeout: 60_000 }, () => {

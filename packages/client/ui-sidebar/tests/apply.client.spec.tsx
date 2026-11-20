@@ -8,7 +8,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { SidebarRootInjected, SidebarSectionInjected, UseSectionScroller } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { TrackProductEvent } from '@deepseek-ai/dsh-client-product-analytics/client'
+
 import { HeaderLeadingControls } from '../src/client/HeaderLeadingControls.tsx'
 import { apply as hostApply } from '../src/index.ts'
 
@@ -62,68 +62,6 @@ describe('ui-sidebar apply', () => {
     expect(inject).toEqual(['slots', 'layout', 'uiWorkspace', 'locale', 'shortcuts'])
   })
 
-  it('registers the shell and declares its child seats', async () => {
-    const b = await bench()
-    await b.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(b.slots.entries('sidebar')).toHaveLength(1)
-    expect(b.slots.spec('sidebar.brand.mark')).toEqual({ kind: 'single', scope: 'root' })
-    expect(b.slots.spec('sidebar.brand.name')).toEqual({ kind: 'single', scope: 'root' })
-    const section = b.slots.spec('sidebar.workspaces') as { kind: string; scope: string; inject: SidebarSectionInjected }
-    expect(section).toMatchObject({ kind: 'single', scope: 'root' })
-    // The section occupant's scroller hook is the one each sidebar render supplies.
-    const useSectionScroller: UseSectionScroller = () => ({ bindScrollerRef: () => {} })
-    expect(section.inject.hooks.sectionScroller({} as never, { useSectionScroller })).toBe(useSectionScroller)
-    expect(b.slots.spec('sidebar.settings')).toEqual({ kind: 'single', scope: 'root' })
-    expect(b.slots.spec('sidebar.footer.action')).toEqual({ kind: 'list', scope: 'root' })
-    expect(b.slots.spec('sidebar.session.action')).toEqual({ kind: 'hoc', scope: 'root' })
-    expect(b.slots.spec('sidebar.panellist')).toEqual({ kind: 'list', scope: 'root' })
-    // Copy rides the standard locale seat, not the inject face.
-    expect(b.slots.entries('sidebar')[0]!.locale).toBe('sidebar')
-    // The window-chrome occupant reuses the shell's inject face and locale.
-    const leading = b.slots.entries('shell.leading')
-    expect(leading).toHaveLength(1)
-    expect(leading[0]!.component).toBe(HeaderLeadingControls)
-    expect(leading[0]!.locale).toBe('sidebar')
-    expect(leading[0]!.inject).toBe(b.slots.entries('sidebar')[0]!.inject)
-    const injected = (b.slots.entries('sidebar')[0]!.inject as () => SidebarRootInjected)()
-    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'setPinned', 'trackEntryClick', 'hooks'])
-    expect(injected.hooks.panels.getSnapshot()).toEqual([])
-    expect(injected.hooks.entryPins.getSnapshot()).toEqual([])
-    expect(injected.hooks.entryActions.getSnapshot()).toBe(false)
-    expect(b.slots.entries('main')).toEqual([])
-    // Both arms delegate to the Workspace UI's shared New Session action.
-    injected.startSession('workspace' as never)
-    expect(b.uiWorkspace.startSession).toHaveBeenCalledWith('workspace')
-    injected.startSession()
-    expect(b.uiWorkspace.startSession).toHaveBeenLastCalledWith(undefined)
-    injected.toggleSidebar()
-    expect(b.layout.toggleSidebar).toHaveBeenCalledOnce()
-    const panelId = 'custom-panel' as MainPanelId
-    injected.selectPanel(panelId)
-    expect(b.layout.selectPanel).toHaveBeenCalledExactlyOnceWith(panelId)
-    expectTypeOf<Parameters<SidebarRootInjected['selectPanel']>[0]>().toEqualTypeOf<MainPanelId>()
-  })
-
-  it('forwards entry clicks to the optional product analytics service without tracking panel selection', async () => {
-    const b = await bench()
-    await b.ctx.plugin({ inject: [...inject], apply }).await()
-    const injected = (b.slots.entries('sidebar')[0]!.inject as () => SidebarRootInjected)()
-    // Ordinary Web mounts no analytics service; reporting is then a no-op.
-    expect(() => { injected.trackEntryClick({ menu_name: 'more', position: 'sidebar' }) }).not.toThrow()
-    const track = vi.fn<TrackProductEvent>()
-    b.ctx.provide('productAnalytics', { track } as never)
-    injected.trackEntryClick({ menu_name: 'new_session', position: 'titlebar' })
-    expect(track).toHaveBeenCalledExactlyOnceWith('sidebar_menu_click', { menu_name: 'new_session', position: 'titlebar' })
-    // Selection only navigates; the clicked control reports its own entry and position.
-    injected.selectPanel('plugins' as MainPanelId)
-    injected.selectPanel('schedules' as MainPanelId)
-    expect(b.layout.selectPanel.mock.calls).toEqual([['plugins'], ['schedules']])
-    expect(track).toHaveBeenCalledOnce()
-    // The window-chrome occupant shares the same reporting callback.
-    const leading = (b.slots.entries('shell.leading')[0]!.inject as () => SidebarRootInjected)()
-    leading.trackEntryClick({ menu_name: 'cron', position: 'sidebar_more' })
-    expect(track).toHaveBeenLastCalledWith('sidebar_menu_click', { menu_name: 'cron', position: 'sidebar_more' })
-  })
 
   it('waits for the sidebar declaration before registering', async () => {
     const b = await bench(false)

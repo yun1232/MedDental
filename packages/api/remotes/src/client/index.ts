@@ -1,8 +1,8 @@
 /** Platform-neutral assembly of generated Host Remote contributions. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import productAnalyticsRemote from '@deepseek-ai/dsh-client-product-analytics/remote'
-export type {} from '@deepseek-ai/dsh-client-product-analytics/remote'
+
+
 import agentPresetsRemote from '@deepseek-ai/dsh-agent-preset-registry/remote'
 import userQuestionsRemote from '@deepseek-ai/dsh-user-questions/remote'
 import commandsRemote from '@deepseek-ai/dsh-commands/remote'
@@ -18,7 +18,7 @@ import pluginManagerRemote from '@deepseek-ai/dsh-plugin-manager/remote'
 import mcpManagerRemote from '@deepseek-ai/dsh-mcp-manager/remote'
 import toolResultsRemote from '@deepseek-ai/dsh-client-ui-trajectory/remote'
 import pluginRegistryProbeRemote from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
-import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
+
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import permissionPresetsRemote from '@deepseek-ai/dsh-permission-presets/remote'
@@ -50,11 +50,8 @@ export type {} from '@deepseek-ai/dsh-plugin-manager/remote'
 export type {} from '@deepseek-ai/dsh-mcp-manager/remote'
 export type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
 export type {} from '@deepseek-ai/dsh-client-ui-trajectory/remote'
-export type {} from '@deepseek-ai/dsh-plugin-market/remote'
-export type {
-  MarketCompatibility, MarketIndexSummary, MarketInstallation, MarketInstallationStatus, MarketListingEntry, MarketListingVersion,
-  MarketQuery, MarketSearchResult, MarketSort, PluginDetail, PluginDetailDocumentId, PluginDetailOrigin,
-} from '@deepseek-ai/dsh-plugin-market/types'
+
+
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type {} from '@deepseek-ai/dsh-agent-preset-registry/remote'
 export type {} from '@deepseek-ai/dsh-user-questions/remote'
@@ -197,9 +194,9 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const disposers: Array<() => Promise<void>> = []
   try {
     for (const contribution of [
-      productAnalyticsRemote, agentPresetsRemote, commandsRemote, agentTeamsRemote, settingsControllerRemote, accountRemote,
+      agentPresetsRemote, commandsRemote, agentTeamsRemote, settingsControllerRemote, accountRemote,
       userQuestionsRemote, webRemote, goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
-      pluginInventoryRemote, pluginManagerRemote, mcpManagerRemote, pluginMarketRemote, pluginRegistryProbeRemote,
+      pluginInventoryRemote, pluginManagerRemote, mcpManagerRemote, pluginRegistryProbeRemote,
       toolResultsRemote,
       messageFeedbackRemote, sessionFeedbackRemote,
       fileUploadsRemote, sessionReferencesRemote,

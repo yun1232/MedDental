@@ -211,6 +211,218 @@
           "name": "@deepseek-ai/dsh-experimental-badge-skill-bundle"
         }
       ]
+    },
+    {
+      "id": 3,
+      "reason": "Remove unrelated product, developer, distribution and upstream fixture modules; retain medical capabilities and optional disease-relevant extensions.",
+      "packages": [
+        {
+          "directory": "apps/desktop-host",
+          "name": "@deepseek-ai/dsh-desktop-host"
+        },
+        {
+          "directory": "apps/desktop-publisher",
+          "name": "@deepseek-ai/dsh-desktop-publisher"
+        },
+        {
+          "directory": "apps/desktop",
+          "name": "@deepseek-ai/dsh-desktop"
+        },
+        {
+          "directory": "apps/plugin-market-generator",
+          "name": "@deepseek-ai/dsh-plugin-market-generator"
+        },
+        {
+          "directory": "benchmarks",
+          "name": "@deepseek-ai/dsh-benchmarks"
+        },
+        {
+          "directory": "packages/boot/plugin-market",
+          "name": "@deepseek-ai/dsh-plugin-market"
+        },
+        {
+          "directory": "packages/client/product-analytics",
+          "name": "@deepseek-ai/dsh-client-product-analytics"
+        },
+        {
+          "directory": "packages/client/ui-entry-customization",
+          "name": "@deepseek-ai/dsh-client-ui-entry-customization"
+        },
+        {
+          "directory": "packages/client/ui-open-in-app",
+          "name": "@deepseek-ai/dsh-client-ui-open-in-app"
+        },
+        {
+          "directory": "packages/client/ui-plugin-market",
+          "name": "@deepseek-ai/dsh-client-ui-plugin-market"
+        },
+        {
+          "directory": "packages/experimental/auto-review",
+          "name": "@deepseek-ai/dsh-experimental-auto-review"
+        },
+        {
+          "directory": "packages/experimental/client-ui-cot-translation",
+          "name": "@deepseek-ai/dsh-experimental-client-ui-cot-translation"
+        },
+        {
+          "directory": "packages/experimental/client-ui-stats",
+          "name": "@deepseek-ai/dsh-experimental-client-ui-stats"
+        },
+        {
+          "directory": "packages/experimental/cot-translation-bundle",
+          "name": "@deepseek-ai/dsh-experimental-cot-translation-bundle"
+        },
+        {
+          "directory": "packages/experimental/deepseek-chat-import",
+          "name": "@deepseek-ai/dsh-deepseek-chat-import"
+        },
+        {
+          "directory": "packages/experimental/inspector-profile",
+          "name": "@deepseek-ai/dsh-experimental-inspector-profile"
+        },
+        {
+          "directory": "packages/experimental/inspector",
+          "name": "@deepseek-ai/dsh-experimental-inspector"
+        },
+        {
+          "directory": "packages/experimental/liveshare-protocol",
+          "name": "@deepseek-ai/dsh-experimental-liveshare-protocol"
+        },
+        {
+          "directory": "packages/experimental/liveshare",
+          "name": "@deepseek-ai/dsh-experimental-liveshare"
+        },
+        {
+          "directory": "packages/experimental/plugin-market-bundle",
+          "name": "@deepseek-ai/dsh-experimental-plugin-market-bundle"
+        },
+        {
+          "directory": "packages/experimental/session-inspector",
+          "name": "@deepseek-ai/dsh-experimental-session-inspector"
+        },
+        {
+          "directory": "packages/experimental/translator",
+          "name": "@deepseek-ai/dsh-experimental-translator"
+        },
+        {
+          "directory": "packages/extensions/tool-cordis",
+          "name": "@deepseek-ai/dsh-tool-cordis"
+        },
+        {
+          "directory": "packages/extensions/ui-cordis",
+          "name": "@deepseek-ai/dsh-client-ui-cordis"
+        },
+        {
+          "directory": "packages/host/open-in-app",
+          "name": "@deepseek-ai/dsh-host-open-in-app"
+        },
+        {
+          "directory": "packages/host/product-telemetry-otel",
+          "name": "@deepseek-ai/dsh-host-product-telemetry-otel"
+        },
+        {
+          "directory": "packages/util/plugin-market-index",
+          "name": "@deepseek-ai/dsh-plugin-market-index"
+        },
+        {
+          "directory": "website",
+          "name": "@deepseek-ai/website"
+        }
+      ],
+      "directories": [
+        "snapshots",
+        "website",
+        "benchmarks",
+        "apps/desktop",
+        "apps/desktop-host",
+        "apps/desktop-publisher",
+        "apps/plugin-market-generator",
+        "packages/boot/plugin-market",
+        "packages/experimental/plugin-market-bundle",
+        "packages/client/ui-plugin-market",
+        "packages/util/plugin-market-index",
+        "packages/extensions/tool-cordis",
+        "packages/extensions/ui-cordis",
+        "packages/experimental/liveshare",
+        "packages/experimental/liveshare-protocol",
+        "packages/experimental/deepseek-chat-import",
+        "packages/experimental/inspector",
+        "packages/experimental/inspector-profile",
+        "packages/experimental/session-inspector",
+        "packages/experimental/client-ui-stats",
+        "packages/client/product-analytics",
+        "packages/host/product-telemetry-otel",
+        "packages/experimental/cot-translation-bundle",
+        "packages/experimental/client-ui-cot-translation",
+        "packages/experimental/translator",
+        "packages/experimental/auto-review",
+        "packages/host/open-in-app",
+        "packages/client/ui-open-in-app",
+        "packages/client/ui-entry-customization"
+      ],
+      "additional_removed_files": [
+        "apps/cli/tests/profiles/headless/tests/fixtures/auto-review.patch.yml",
+        "apps/cli/tests/profiles/headless/tests/ptc.e2e.ts",
+        "apps/cli/tests/web-agent-presets.e2e.ts",
+        "apps/web/tests/access-confirmation.e2e.ts",
+        "apps/web/tests/auto-review-approval.e2e.ts",
+        "apps/web/tests/auto-review-denial.e2e.ts",
+        "apps/web/tests/auto-review-fixture.ts",
+        "apps/web/tests/client-ui-stats-panel.e2e.ts",
+        "apps/web/tests/client-ui-stats-panel.overlay.yml",
+        "apps/web/tests/cot-translation-paid.e2e.ts",
+        "apps/web/tests/cot-translation.e2e.ts",
+        "apps/web/tests/deepseek-chat-import.e2e.ts",
+        "apps/web/tests/desktop-channel.e2e.ts",
+        "apps/web/tests/desktop-onboarding.e2e.ts",
+        "apps/web/tests/desktop-updates.e2e.ts",
+        "apps/web/tests/document-preview.e2e.ts",
+        "apps/web/tests/excel-opc.e2e.ts",
+        "apps/web/tests/open-in-app-menus.e2e.ts",
+        "apps/web/tests/open-in-app-no-export.overlay.yml",
+        "apps/web/tests/open-in-app-ssh.e2e.ts",
+        "apps/web/tests/plugin-market-toolbar.e2e.ts",
+        "apps/web/tests/shipped-composition.e2e.ts",
+        "apps/web/tests/shortcuts-desktop.e2e.ts",
+        "packages/bundle/web-app/tests/product-analytics.spec.ts",
+        "packages/client/ui-agent-preset/src/client/analytics.ts",
+        "packages/client/ui-agent-preset/tests/analytics.client.spec.ts",
+        "packages/client/ui-conversation/src/client/input/submission-analytics.ts",
+        "packages/client/ui-settings-account/tests/desktop-onboarding-entry.client.spec.tsx",
+        "packages/client/ui-settings-account/tests/desktop-onboarding.client.spec.tsx",
+        "packages/client/ui-settings-general/tests/desktop-channel.client.spec.ts",
+        "packages/client/ui-sidebar-documentpreview/tests/fuzz/run.client.ts",
+        "packages/core/tools/tests/gen-tool-catalog.spec.ts",
+        "packages/sdk/client/tests/cot-translation-projection.spec.ts",
+        "packages/sdk/client/tests/expected/cot-translation-projection.json",
+        "patches/@electron__osx-sign@1.3.3.patch",
+        "patches/app-builder-lib@26.17.0.patch",
+        "python/sdk/tests/expected/cot-translation-projection.json",
+        "scripts/brand-constructor-compat.spec.ts",
+        "scripts/desktop-package-source.spec.ts",
+        "scripts/desktop-publish-workflow.spec.ts",
+        "scripts/gen-cordis-inspect-catalog.ts",
+        "scripts/optional-bundles.spec.ts",
+        "scripts/project-doc-site.spec.ts",
+        "scripts/project-doc-site.ts",
+        "scripts/release/publish.spec.ts",
+        "scripts/release/publish.ts",
+        "scripts/run-bench-suite.ts",
+        "scripts/run-ci-bench.ts",
+        "scripts/run-memory-pressure-bench.spec.ts",
+        "scripts/run-memory-pressure-bench.ts",
+        "scripts/session-query-spill-command.spec.ts",
+        "scripts/shipped-locales.spec.ts",
+        "scripts/snapshot-http-fixtures.spec.ts",
+        "scripts/stage-dsh-docs.spec.ts",
+        "scripts/stage-dsh-docs.ts",
+        "scripts/verify-doc-site-fragments.spec.ts",
+        "scripts/verify-doc-site-fragments.ts",
+        "scripts/windows-package-workflow.spec.ts",
+        "vitest.bench.config.ts",
+        "vitest.expected.config.ts",
+        "vitest.snapshot.config.ts"
+      ]
     }
   ],
   "note": "Reconstructed from attached source and current requested boundary; no previous unsaved deletion list was present.",

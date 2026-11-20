@@ -22,10 +22,6 @@
     "docs",
     "src"
   ],
-  "scripts": {
-    "prepack": "tsx ../../scripts/stage-dsh-docs.ts",
-    "postpack": "tsx ../../scripts/stage-dsh-docs.ts --clean"
-  },
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:~",
@@ -39,14 +35,12 @@
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-base": "workspace:*",
     "@deepseek-ai/dsh-client-ui-agent-preset": "workspace:*",
-    "@deepseek-ai/dsh-client-ui-cordis": "workspace:*",
     "@deepseek-ai/dsh-cmdline": "workspace:*",
     "@deepseek-ai/dsh-command-compact": "workspace:*",
     "@deepseek-ai/dsh-command-goal": "workspace:*",
     "@deepseek-ai/dsh-compaction-basic": "workspace:*",
     "@deepseek-ai/dsh-compaction-tool-result-pruner": "workspace:*",
     "@deepseek-ai/dsh-cordis-client-runner": "workspace:*",
-    "@deepseek-ai/dsh-experimental-inspector-profile": "workspace:*",
     "@deepseek-ai/dsh-fs-local": "workspace:*",
     "@deepseek-ai/dsh-goal": "workspace:*",
     "@deepseek-ai/dsh-goal-round-driver": "workspace:*",
@@ -75,7 +69,6 @@
     "@deepseek-ai/dsh-tool-ask-user": "workspace:*",
     "@deepseek-ai/dsh-tool-bash": "workspace:*",
     "@deepseek-ai/dsh-tool-bash-persistent": "workspace:*",
-    "@deepseek-ai/dsh-tool-cordis": "workspace:*",
     "@deepseek-ai/dsh-tool-present": "workspace:*",
     "@deepseek-ai/dsh-tool-fs": "workspace:*",
     "@deepseek-ai/dsh-tool-fs-search": "workspace:*",
@@ -103,15 +96,10 @@
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-agent-preset": "workspace:*",
     "@deepseek-ai/dsh-experimental-voice-input-bundle": "workspace:*",
-    "@deepseek-ai/dsh-experimental-auto-review": "workspace:*",
-    "@deepseek-ai/dsh-experimental-cot-translation-bundle": "workspace:*",
     "@deepseek-ai/dsh-experimental-session-titles-bundle": "workspace:*",
     "@deepseek-ai/dsh-experimental-terminal-bundle": "workspace:*",
-    "@deepseek-ai/dsh-experimental-liveshare": "workspace:*",
     "@deepseek-ai/dsh-experimental-session-search": "workspace:*",
-    "@deepseek-ai/dsh-timeline": "workspace:*",
-    "@deepseek-ai/dsh-experimental-plugin-market-bundle": "workspace:*",
-    "@deepseek-ai/dsh-deepseek-chat-import": "workspace:*"
+    "@deepseek-ai/dsh-timeline": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-brand": "workspace:*",

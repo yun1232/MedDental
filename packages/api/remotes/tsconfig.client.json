@@ -12,7 +12,6 @@
   ],
   "references": [
     { "path": "../../team/agent-team" },
-    { "path": "../../client/product-analytics/tsconfig.client.json" },
     {
       "path": "../../../vendor/cordis"
     },
@@ -105,9 +104,6 @@
     },
     {
       "path": "../../mcp/mcp-manager"
-    },
-    {
-      "path": "../../boot/plugin-market"
     },
     {
       "path": "../../credentials/deepseek-account"

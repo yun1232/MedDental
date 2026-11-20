@@ -38,8 +38,6 @@ export const HIDDEN_BUNDLES: ReadonlySet<string> = new Set([
  */
 export const EXTENSION_BUNDLES: readonly string[] = [
   '@deepseek-ai/dsh-experimental-voice-input-bundle',
-  '@deepseek-ai/dsh-experimental-plugin-market-bundle',
-  '@deepseek-ai/dsh-experimental-auto-review',
 ]
 
 /**
@@ -47,24 +45,15 @@ export const EXTENSION_BUNDLES: readonly string[] = [
  * which includes every eligible bundle, ranks them last in this order.
  */
 export const MORE_BUNDLES: readonly string[] = [
-  '@deepseek-ai/dsh-experimental-inspector-profile',
   '@deepseek-ai/dsh-timeline',
-  '@deepseek-ai/dsh-experimental-cot-translation-bundle',
   '@deepseek-ai/dsh-experimental-session-search',
   '@deepseek-ai/dsh-experimental-session-titles-bundle',
-  '@deepseek-ai/dsh-deepseek-chat-import',
 ]
 
 /** Official bundles the plugin manager marks with the Experimental badge. */
 export const EXPERIMENTAL_BUNDLES: ReadonlySet<string> = new Set([
   '@deepseek-ai/dsh-timeline',
   '@deepseek-ai/dsh-experimental-voice-input-bundle',
-  '@deepseek-ai/dsh-experimental-auto-review',
-  '@deepseek-ai/dsh-experimental-inspector-profile',
-  '@deepseek-ai/dsh-experimental-cot-translation-bundle',
   '@deepseek-ai/dsh-experimental-session-search',
   '@deepseek-ai/dsh-experimental-session-titles-bundle',
-  '@deepseek-ai/dsh-experimental-plugin-market-bundle',
-  '@deepseek-ai/dsh-experimental-liveshare',
-  '@deepseek-ai/dsh-deepseek-chat-import',
 ])

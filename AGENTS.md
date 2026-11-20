@@ -9,3 +9,5 @@ The project retains the DeepSeek Harness runtime, vendored Cordis, native compon
 - Framework artifact changes require `pnpm build` followed by the affected behavior checks. Report environment blockers and incomplete validation explicitly.
 - `integrations/oral-memory/refinement.json` lists removed files and commands. Upstream documentation/CI checks whose assets were removed are outside this distribution. Restore the original source distribution before running its governance or release checks.
 - Retain LICENSE, THIRD_PARTY_NOTICES.md, dependency pins, patches and sandbox defaults. Never commit deployment credentials or patient databases.
+
+- This distribution serves patients through Web; Desktop/Electron, plugin marketplace, developer inspectors, product analytics, chat imports and session sharing were removed. Do not restore them through default bundles. After composition changes, build artifacts and run `pnpm test:medical-web`; it starts an isolated synthetic patient Web process and checks its authenticated frontend without calling a model.

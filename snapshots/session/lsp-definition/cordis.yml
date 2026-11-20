@@ -1,5 +1,0 @@
-# Exercise the model-facing LSP tool through the shipped Loader entry path.
-# The scenario workspace supplies the deterministic stdio server used by this test composition.
-- insert:
-- id: timeout-policy
-  name: '@deepseek-ai/dsh-tool-call-timeout-policy'

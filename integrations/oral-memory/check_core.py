@@ -1,6 +1,7 @@
 """Verify retained upstream files and the workspace patch references without dependencies."""
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -33,6 +34,25 @@ def main():
         for key in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
             for name in removed.intersection(data.get(key, {})):
                 problems.append(f"removed dependency remains: {package.relative_to(root)}: {name}")
+        for name in data.get("dsh", {}).get("client", {}).get("external", []):
+            if any(name == old or name.startswith(old + "/") for old in removed):
+                problems.append(f"removed browser external remains: {package.relative_to(root)}: {name}")
+        patches = data.get("dsh", {}).get("bundle", {}).get("patch", [])
+        for patch in [patches] if isinstance(patches, str) else patches:
+            if not (package.parent / patch).is_file():
+                problems.append(f"missing bundle patch: {package.relative_to(root)}: {patch}")
+    # Inspect runtime source and shipped compositions, including subpath imports.
+    for area in (root / "packages", root / "apps"):
+        for source in area.glob("**/src/**/*"):
+            if "node_modules" in source.parts or not source.is_file() or source.suffix not in (".ts", ".tsx", ".mjs"):
+                continue
+            for name in re.findall(r"(?:from\s+|import\s*\(\s*)['\"]([^'\"]+)['\"]", source.read_text()):
+                if any(name == old or name.startswith(old + "/") for old in removed):
+                    problems.append(f"removed runtime import: {source.relative_to(root)}: {name}")
+    for composition in [*root.glob("packages/*/*/*.yml"), *root.glob("packages/bundle/*/presets/*.yml")]:
+        for name in re.findall(r"^\s*name:\s*['\"]?([^'\"\s]+)", composition.read_text(), re.M):
+            if any(name == old or name.startswith(old + "/") for old in removed):
+                problems.append(f"removed runtime plugin: {composition.relative_to(root)}: {name}")
     for batch in refinement["batches"]:
         for entry in batch["packages"]:
             if (root / entry["directory"]).exists():

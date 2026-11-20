@@ -1,4 +1,4 @@
-> 当前医疗精简版：已移除 50 个无关包。功能边界、启动方法及验证限制以 [REFINEMENT.zh.md](REFINEMENT.zh.md) 为准。原上游说明中涉及 Office、外部编程代理、Forge 等功能不适用于此版本。
+> 当前医疗精简版：累计移除 78 个无关包，保留 Web 问诊入口。最新删除范围与验证结果见 [PRUNING.zh.md](PRUNING.zh.md)，启动方法见 [REFINEMENT.zh.md](REFINEMENT.zh.md)。
 
 # MedDental
 
