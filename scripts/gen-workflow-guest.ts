@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Bundle the workflow guest as source data; --check rejects a stale committed module. */
 
 import { readFile, realpath, writeFile } from 'node:fs/promises'
@@ -20,7 +21,7 @@ export async function bundleWorkflowGuest(root: string): Promise<string> {
     cwd: root,
     input: resolve(root, GUEST_ENTRY),
     platform: 'node',
-    tsconfig: resolve(root, 'tsconfig.base.json'),
+    tsconfig: repositoryConfig(root, 'tsconfig.base.json'),
     external: id => isBuiltin(id),
     // The guest imports pure helpers from package barrels, without mounting their services.
     treeshake: { moduleSideEffects: false },

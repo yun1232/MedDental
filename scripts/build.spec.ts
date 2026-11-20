@@ -92,8 +92,8 @@ describe('repository build steps', () => {
     const gates = buildGates(root, 'check')
     expect(graph(gates)).toEqual({ 'host-check': [], 'client-check': [] })
     expect(gates.map(gate => gate.args.slice(-2))).toEqual([
-      ['-p', 'tsconfig.host.json'],
-      ['-p', 'tsconfig.client.json'],
+      ['-p', 'config/tsconfig.host.json'],
+      ['-p', 'config/tsconfig.client.json'],
     ])
   })
 
@@ -116,8 +116,8 @@ describe('repository build steps', () => {
     })
     expect(gates.find(gate => gate.id === 'host-typert')?.args.at(-1)).toBe(resolve(root, 'scripts/generate-typert.ts'))
     expect(gates.filter(gate => gate.id.endsWith('-check')).map(gate => gate.args.slice(-2))).toEqual([
-      ['-b', 'tsconfig.host.json'],
-      ['-b', 'tsconfig.client.json'],
+      ['-b', 'config/tsconfig.host.json'],
+      ['-b', 'config/tsconfig.client.json'],
     ])
   })
 

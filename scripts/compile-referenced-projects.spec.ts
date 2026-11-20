@@ -102,9 +102,9 @@ describe('internal artifact build order', () => {
     buildLibraryArtifacts(root, hostOnly)
 
     const expected = [
-      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
+      ['exec', 'tsdown', '--config', 'config/tsdown.config.ts', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
       ...hostOnly ? [] : [
-        ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'],
+        ['exec', 'tsdown', '--config', 'config/tsdown.config.ts', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'],
       ],
     ]
     expect(commands()).toEqual(expected.map(args => ({ args, title: 'Inherited Build Title' })))
@@ -131,7 +131,7 @@ describe('internal artifact build order', () => {
 
     expect(readFileSync(join(consumer, 'lib/types/index.js'), 'utf8')).toContain('TYPERT')
     expect(commands().map(command => command.args)).toEqual([
-      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
+      ['exec', 'tsdown', '--config', 'config/tsdown.config.ts', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
     ])
   })
 
@@ -304,7 +304,7 @@ describe('package project compilation', () => {
   it('checks only the aggregate program in project mode', () => {
     const { root, leaf } = fixture()
     compileReferencedProjects(root, 'host')
-    const check = () => spawnSync(process.execPath, aggregateCheckArgs('host'), { cwd: root, encoding: 'utf8' })
+    const check = () => spawnSync(process.execPath, aggregateCheckArgs('host', root), { cwd: root, encoding: 'utf8' })
 
     const clean = check()
     expect(clean.status, clean.stdout + clean.stderr).toBe(0)
@@ -322,7 +322,7 @@ describe('package project compilation', () => {
   it('reports missing package declarations without compiling references', () => {
     const { root, leaf } = fixture()
 
-    const result = spawnSync(process.execPath, aggregateCheckArgs('client'), { cwd: root, encoding: 'utf8' })
+    const result = spawnSync(process.execPath, aggregateCheckArgs('client', root), { cwd: root, encoding: 'utf8' })
 
     expect(result.status).not.toBe(0)
     expect(result.stdout).toContain('error TS6305')

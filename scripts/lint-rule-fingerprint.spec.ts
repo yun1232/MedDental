@@ -73,7 +73,7 @@ function mergedRules(overrides: readonly unknown[], indexes: readonly number[]):
 }
 
 describe('Oxlint repository rule fingerprint', () => {
-  const path = fileURLToPath(new URL('../.oxlintrc.json', import.meta.url))
+  const path = fileURLToPath(new URL('../config/oxlint.json', import.meta.url))
   const result = parseConfigFileTextToJson(path, readFileSync(path, 'utf8'))
   if (result.error !== undefined) {
     throw new Error(flattenDiagnosticMessageText(result.error.messageText, '\n'))

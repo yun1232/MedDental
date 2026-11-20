@@ -11,3 +11,5 @@ The project retains the DeepSeek Harness runtime, vendored Cordis, native compon
 - Retain LICENSE, THIRD_PARTY_NOTICES.md, dependency pins, patches and sandbox defaults. Never commit deployment credentials or patient databases.
 
 - This distribution serves patients through Web; Desktop/Electron, plugin marketplace, developer inspectors, product analytics, chat imports and session sharing were removed. Do not restore them through default bundles. After composition changes, build artifacts and run `pnpm test:medical-web`; it starts an isolated synthetic patient Web process and checks its authenticated frontend without calling a model.
+
+- Repository compiler, bundler, Vitest and lint configs live in `config/`. Keep the root `tsconfig.json` as a discoverable solution only. Use `pnpm vitest run ...`, or explicitly select `--config config/vitest.config.ts` with the Vitest executable. Preserve package-owned compiler configs and their rebased extends paths.

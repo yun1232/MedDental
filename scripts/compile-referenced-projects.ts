@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /**
  * Compile and bundle package projects without repeating aggregate test and script typechecks.
  * Source-only Typert generation precedes compilation; contract steps omit runtime bundles.
@@ -56,7 +57,7 @@ export function referencedProjectsCompilerArgs(
   face: 'host' | 'client',
   mode: CompilationMode = 'checked',
 ): string[] {
-  const configPath = resolve(root, `tsconfig.${face}.json`)
+  const configPath = repositoryConfig(root, `tsconfig.${face}.json`)
   const config = ts.getParsedCommandLineOfConfigFile(configPath, {}, {
     ...ts.sys,
     onUnRecoverableConfigFileDiagnostic(diagnostic) {
@@ -93,8 +94,8 @@ export function referencedProjectsCompilerArgs(
  * @param face - Compiler face whose aggregate program is checked.
  * @returns Arguments for `process.execPath`, run from the repository root.
  */
-export function aggregateCheckArgs(face: 'host' | 'client'): string[] {
-  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-p', `tsconfig.${face}.json`]
+export function aggregateCheckArgs(face: 'host' | 'client', root = resolve(import.meta.dirname, '..')): string[] {
+  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-p', relative(root, repositoryConfig(root, `tsconfig.${face}.json`))]
 }
 
 /**
@@ -104,8 +105,8 @@ export function aggregateCheckArgs(face: 'host' | 'client'): string[] {
  * @param face - Compiler face whose aggregate program is checked.
  * @returns Arguments for `process.execPath`, run from the repository root.
  */
-export function aggregateBuildArgs(face: 'host' | 'client'): string[] {
-  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-b', `tsconfig.${face}.json`]
+export function aggregateBuildArgs(face: 'host' | 'client', root = resolve(import.meta.dirname, '..')): string[] {
+  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-b', relative(root, repositoryConfig(root, `tsconfig.${face}.json`))]
 }
 
 function hostHeapArgs(face: 'host' | 'client'): string[] {
@@ -178,13 +179,13 @@ export function libraryBuildSteps(root: string, faces: 'host' | 'all', mode: Com
   const host: LibraryStep[] = [
     typertStep(),
     compilerStep(root, 'host', mode, ['host-typert']),
-    pnpmStep('host-bundle', 'Host bundle', ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'], ['host-src']),
+    pnpmStep('host-bundle', 'Host bundle', ['exec', 'tsdown', '--config', 'config/tsdown.config.ts', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'], ['host-src']),
   ]
   if (faces === 'host') return host
   return [
     ...host,
     compilerStep(root, 'client', mode, ['host-bundle']),
-    pnpmStep('client-bundle', 'Client bundle', ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'], ['client-src']),
+    pnpmStep('client-bundle', 'Client bundle', ['exec', 'tsdown', '--config', 'config/tsdown.config.ts', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'], ['client-src']),
   ]
 }
 

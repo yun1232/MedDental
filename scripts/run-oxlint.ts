@@ -71,7 +71,11 @@ function completeFrom(result: { readonly signal: NodeJS.Signals | null; readonly
 }
 
 function main(): void {
-  const invocation = resolveOxlintInvocation(process.argv.slice(2), process.env)
+  const args = process.argv.slice(2)
+  if (!args.some(arg => arg === '--config' || arg.startsWith('--config='))) {
+    args.push('--config', fileURLToPath(new URL('../config/oxlint.json', import.meta.url)))
+  }
+  const invocation = resolveOxlintInvocation(args, process.env)
   if (!isFixInvocation(invocation.args)) {
     const result = spawnSync(process.execPath, [oxlintCli, ...invocation.args], {
       env: invocation.env,

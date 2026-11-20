@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Validate compiler-face isolation across workspace Project Reference graphs. */
 
 import { existsSync, globSync } from 'node:fs'
@@ -30,7 +31,7 @@ const WORKSPACE_MANIFESTS = [
 export function collectProjectReferenceFaceViolations(root: string): string[] {
   const splitRoots = splitProjectRoots(root)
   const violations: string[] = []
-  const pending = [resolve(root, 'tsconfig.host.json'), resolve(root, 'tsconfig.client.json')]
+  const pending = [repositoryConfig(root, 'tsconfig.host.json'), repositoryConfig(root, 'tsconfig.client.json')]
   const visited = new Set<string>()
   for (let configPath = pending.pop(); configPath !== undefined; configPath = pending.pop()) {
     if (visited.has(configPath) || !existsSync(configPath)) continue
@@ -93,8 +94,8 @@ function projectFace(
 ): ProjectFace | undefined {
   if (basename(configPath) === 'tsconfig.host.json') return 'host'
   if (basename(configPath) === 'tsconfig.client.json') return 'client'
-  if (configPath === resolve(root, 'tsconfig.base.json')) return 'host'
-  if (configPath === resolve(root, 'tsconfig.base.client.json')) return 'client'
+  if (configPath === repositoryConfig(root, 'tsconfig.base.json')) return 'host'
+  if (configPath === repositoryConfig(root, 'tsconfig.base.client.json')) return 'client'
   if (seen.has(configPath)) return undefined
   seen.add(configPath)
   const parent = localExtendsConfig(configPath, config.extends)

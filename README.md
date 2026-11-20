@@ -2,6 +2,8 @@
 
 # MedDental
 
+Project configuration is centralized in [`config/`](config/README.md). Use `pnpm vitest run ...` for selected tests; the root `tsconfig.json` remains the automatic discovery entry.
+
 Oral leukoplakia memory and progressive patient interviewing on DeepSeek Harness.
 
 [中文](README.zh.md) · [Refinement guide](REFINEMENT.zh.md) · [MIT license](LICENSE)

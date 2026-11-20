@@ -22,7 +22,7 @@ beforeAll(async () => {
   repositoryRoot = await realpath(repositoryRoot)
   const files = [
     ...globSync('tsconfig*.json', { cwd: sourceRepositoryRoot }),
-    '.oxlintrc.json', '.oxlintrc.staged.json', 'package.json', 'lefthook.yml',
+    'config', 'package.json', 'lefthook.yml',
     'apps', 'native', 'packages', 'python', 'scripts', 'vendor', 'website',
   ]
   for (const path of files) {
@@ -74,7 +74,7 @@ function normalizedOutput(result: ReturnType<typeof runOxlint>): string {
 
 async function writeContractConfig(suffix: string): Promise<string> {
   const path = join(repositoryRoot, `.oxlintrc.contract-${suffix}.json`)
-  await writeFile(path, JSON.stringify({ extends: ['./.oxlintrc.json'], ignorePatterns: [] }))
+  await writeFile(path, JSON.stringify({ extends: ['./config/oxlint.json'], ignorePatterns: [] }))
   return path
 }
 
@@ -189,7 +189,7 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
   }, 90_000)
 
   it('keeps the complete stylistic contract in Oxlint', async () => {
-    const oxlintPath = join(repositoryRoot, '.oxlintrc.json')
+    const oxlintPath = join(repositoryRoot, 'config/oxlint.json')
     const result = parseConfigFileTextToJson(oxlintPath, await readFile(oxlintPath, 'utf8'))
     if (result.error !== undefined) {
       throw new Error(flattenDiagnosticMessageText(result.error.messageText, '\n'))
@@ -233,7 +233,7 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
   it('checks preserved TypeGraph syntax without type-aware analysis', () => {
     const result = runOxlint([
       '--config',
-      '.oxlintrc.staged.json',
+      'config/oxlint-staged.json',
       'packages/typert/generator/tests/fixtures/type-model',
     ])
 
@@ -249,14 +249,14 @@ export const longProbe = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 +
 
     expect(packageJson.scripts['lint:contracts-ready']).toBe('tsx scripts/run-oxlint.ts .')
     expect(packageJson.scripts['lint:fix:contracts-ready']).toBe(
-      'tsx scripts/run-oxlint.ts --config .oxlintrc.staged.json packages/typert/generator/tests/fixtures/type-model --fix && tsx scripts/run-oxlint.ts . --fix',
+      'tsx scripts/run-oxlint.ts --config config/oxlint-staged.json packages/typert/generator/tests/fixtures/type-model --fix && tsx scripts/run-oxlint.ts . --fix',
     )
     expect(packageJson.devDependencies).not.toHaveProperty('eslint')
     expect(packageJson.devDependencies).not.toHaveProperty('@typescript-eslint/parser')
     expect(existsSync(join(sourceRepositoryRoot, 'eslint.format.config.mjs'))).toBe(false)
 
     const lefthook = await readFile(join(repositoryRoot, 'lefthook.yml'), 'utf8')
-    expect(lefthook).toContain('scripts/run-oxlint.ts --config .oxlintrc.staged.json --fix')
+    expect(lefthook).toContain('scripts/run-oxlint.ts --config config/oxlint-staged.json --fix')
     expect(lefthook).not.toContain('node_modules/.bin/eslint')
     expect(lefthook).not.toContain('eslint.format.config.mjs')
   })
@@ -393,7 +393,7 @@ export function unrelatedRead(): void {
   }, 90_000)
 
   it('keeps staged validation project-free while preserving source rules', async () => {
-    const configPath = join(repositoryRoot, '.oxlintrc.staged.json')
+    const configPath = join(repositoryRoot, 'config/oxlint-staged.json')
     const result = parseConfigFileTextToJson(configPath, await readFile(configPath, 'utf8'))
     if (result.error !== undefined) {
       throw new Error(flattenDiagnosticMessageText(result.error.messageText, '\n'))
@@ -401,7 +401,7 @@ export function unrelatedRead(): void {
     const stagedConfig: unknown = result.config
     if (!isRecord(stagedConfig)) throw new Error('.oxlintrc.staged.json must contain a config object')
     expect(stagedConfig).toMatchObject({
-      extends: ['./.oxlintrc.json'],
+      extends: ['./oxlint.json'],
       options: { typeAware: false },
     })
     expect(stagedConfig.ignorePatterns).not.toContain('packages/typert/generator/tests/fixtures/type-model/**')
@@ -436,7 +436,7 @@ export function unrelatedRead(): void {
       await writeFile(path, '// oxlint-disable-next-line no-console\nexport const value = 1\n')
       const result = runRepositoryOxlint([
         '--config',
-        '.oxlintrc.staged.json',
+        'config/oxlint-staged.json',
         '--format',
         'unix',
         '--fix',
@@ -460,7 +460,7 @@ export function unrelatedRead(): void {
       await writeFile(path, `export const longProbe = ${'1 + '.repeat(80)}1\n`)
       const result = runRepositoryOxlint([
         '--config',
-        '.oxlintrc.staged.json',
+        'config/oxlint-staged.json',
         '--format',
         'unix',
         '--fix',
@@ -488,7 +488,7 @@ export function unrelatedRead(): void {
         await writeFile(path, 'const value={answer:1};  \nconsole.log(value)\n')
 
         const relativePath = relative(repositoryRoot, path)
-        const lintResult = runRepositoryOxlint(['--config', '.oxlintrc.staged.json', fixFlag, relativePath])
+        const lintResult = runRepositoryOxlint(['--config', 'config/oxlint-staged.json', fixFlag, relativePath])
 
         expect(lintResult.error).toBeUndefined()
         expect(lintResult.status, normalizedOutput(lintResult)).toBe(0)

@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /**
  * Shared TypeScript Program construction for repository gates that need real
  * cross-file symbols and types instead of isolated syntax trees.
@@ -46,7 +47,7 @@ export interface FaceConfigs {
  * @returns the aggregate's root config and every config it compiles.
  */
 export function faceConfigs(projectRoot: string, face: CompilerFace): FaceConfigs {
-  const rootPath = resolve(projectRoot, `tsconfig.${face}.json`)
+  const rootPath = repositoryConfig(projectRoot, `tsconfig.${face}.json`)
   const root = parseConfig(rootPath)
   const byPath = new Map<string, ts.ParsedCommandLine>([[rootPath, root]])
   const collect = (parsed: ts.ParsedCommandLine): void => {

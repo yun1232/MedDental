@@ -2,24 +2,24 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import tsconfigPaths from 'vite-tsconfig-paths'
-import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
+import { resolvePwshPath } from '../packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
-import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
-import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTimeoutOptions } from './scripts/coverage-partitions.ts'
-import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from './scripts/parallelism.ts'
+import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from '../scripts/coverage-exempt.ts'
+import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTimeoutOptions } from '../scripts/coverage-partitions.ts'
+import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from '../scripts/parallelism.ts'
 
 // Prints exact `path:line:col` records for every uncovered statement, branch
 // path, and function when a file misses the per-file 100% gate — the built-in
 // threshold ERRORs name only the file. Absolute path because istanbul-reports
 // require()s custom reporters (which is also why the reporter is CJS).
-const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
+const uncoveredLocationsReporter = fileURLToPath(new URL('../scripts/coverage-uncovered-locations.cjs', import.meta.url))
 
 // Resolution facade shared by every plugin instance below: tsconfig.base.json
 // has no include, which vite-tsconfig-paths treats as match-all, so its paths
 // map applies to every test file. paths must win over package exports so built
 // lib/ never loads a second module-singleton copy.
-const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ projects: ['./tsconfig.base.json'] })
+const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ projects: [new URL('./tsconfig.base.json', import.meta.url).pathname] })
 
 const windowsUnsupportedPackages = process.platform === 'win32'
   ? [
@@ -182,26 +182,27 @@ const processBoundTests = [
 
 // Claude Code's test-kit module names, served by the mods bridge's test support so the example mods' tests import them unchanged.
 const claudeCodeTestingAliases = {
-  'claude-code/testing': fileURLToPath(new URL('./packages/experimental/claude-code-mods/tests/support/claude-code-testing.ts', import.meta.url)),
-  'claude-code': fileURLToPath(new URL('./packages/experimental/claude-code-mods/tests/support/claude-code.ts', import.meta.url)),
+  'claude-code/testing': fileURLToPath(new URL('../packages/experimental/claude-code-mods/tests/support/claude-code-testing.ts', import.meta.url)),
+  'claude-code': fileURLToPath(new URL('../packages/experimental/claude-code-mods/tests/support/claude-code.ts', import.meta.url)),
 }
 
 // The LiveShare client entry statically imports its generated `./remote` contribution, which exists
 // only in built `lib/` output. On a clean checkout Vite resolves that import while transforming the
 // entry, before `vi.mock` can answer it, so the jsdom assembly suites need a resolvable stand-in.
-const liveshareRemoteBuild = fileURLToPath(new URL('./packages/experimental/liveshare/lib/typert.remote-client.js', import.meta.url))
-const chatImportRemoteBuild = fileURLToPath(new URL('./packages/experimental/deepseek-chat-import/lib/typert.remote-client.js', import.meta.url))
+const liveshareRemoteBuild = fileURLToPath(new URL('../packages/experimental/liveshare/lib/typert.remote-client.js', import.meta.url))
+const chatImportRemoteBuild = fileURLToPath(new URL('../packages/experimental/deepseek-chat-import/lib/typert.remote-client.js', import.meta.url))
 const generatedRemoteAliases = {
   ...existsSync(liveshareRemoteBuild) ? {} : {
-    '@deepseek-ai/dsh-experimental-liveshare/remote': fileURLToPath(new URL('./packages/experimental/liveshare/tests/generated-remote-stub.ts', import.meta.url)),
+    '@deepseek-ai/dsh-experimental-liveshare/remote': fileURLToPath(new URL('../packages/experimental/liveshare/tests/generated-remote-stub.ts', import.meta.url)),
   },
   ...existsSync(chatImportRemoteBuild) ? {} : {
-    '@deepseek-ai/dsh-deepseek-chat-import/remote': fileURLToPath(new URL('./packages/experimental/deepseek-chat-import/tests/generated-remote-stub.ts', import.meta.url)),
+    '@deepseek-ai/dsh-deepseek-chat-import/remote': fileURLToPath(new URL('../packages/experimental/deepseek-chat-import/tests/generated-remote-stub.ts', import.meta.url)),
   },
 }
 const testingAliases = { ...claudeCodeTestingAliases, ...generatedRemoteAliases }
 
 export default defineConfig({
+  root: fileURLToPath(new URL('../', import.meta.url)),
   plugins: [pathsPlugin(), standardDecoratorPlugin()],
   resolve: { alias: testingAliases },
   test: {

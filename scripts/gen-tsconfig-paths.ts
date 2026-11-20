@@ -23,7 +23,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const CONFIG = join(ROOT, 'tsconfig.base.json')
+const CONFIG = join(ROOT, 'config/tsconfig.base.json')
 const BEGIN = '      // BEGIN generated package aliases — pnpm run gen-tsconfig-paths'
 const END = '      // END generated package aliases'
 
@@ -107,7 +107,7 @@ export function collectPackageAliases(): PackageAlias[] {
     }
     bySpecifier.set(name, {
       specifier: name,
-      source: `./packages/${group}/${directory}/src`,
+      source: `../packages/${group}/${directory}/src`,
       directory: `${group}/${directory}`,
     })
   }

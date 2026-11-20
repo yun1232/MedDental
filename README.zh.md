@@ -2,6 +2,8 @@
 
 # MedDental
 
+项目配置已集中到 [`config/`](config/README.md)，原有启动和构建命令继续使用；运行指定测试可使用 `pnpm vitest run ...`。
+
 基于 DeepSeek Harness 的口腔白斑记忆与渐进问询系统。
 
 [English](README.md) · [精简与验证说明](REFINEMENT.zh.md) · [MIT 许可证](LICENSE)

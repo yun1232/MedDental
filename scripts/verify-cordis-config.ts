@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /**
  * Validate Cordis Loader entry metadata and package resolution.
  *
@@ -421,14 +422,14 @@ export function bundlePluginDependencyErrors(
 function validateSourcePlaneResolution(): string[] {
   const violations: string[] = []
   const localPackages = localPackageDirectories()
-  const config = ts.readConfigFile(resolve(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
+  const config = ts.readConfigFile(repositoryConfig(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
   if (config.error !== undefined) {
     throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
   }
   const { options, errors: optionErrors } = ts.convertCompilerOptionsFromJson(
     (config.config as { compilerOptions?: unknown }).compilerOptions,
-    root,
-    'tsconfig.base.json',
+    dirname(repositoryConfig(root, 'tsconfig.base.json')),
+    repositoryConfig(root, 'tsconfig.base.json'),
   )
   if (optionErrors.length > 0) {
     throw new Error(optionErrors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))

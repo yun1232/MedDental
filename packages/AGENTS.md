@@ -22,7 +22,7 @@ These package-specific rules supplement the repo-wide [conventions](../AGENTS.md
 
 [Naming rules](../docs/cookbook/adding-a-package.md#name-the-role-that-exists):
 
-- **Package tsconfig:** extends `tsconfig.base.json` (Client: `tsconfig.base.client.json`), sets `rootDir: src` and `outDir: lib/types`, references workspace dependencies, and registers in one aggregate. Packages with distinct Host and Client compiler faces use `tsconfig.host.json` and `tsconfig.client.json` leaves plus a solution-only root; ordinary two-entry Client plugins do not split ([layout](../docs/development.md#typescript-project-layout)).
+- **Package tsconfig:** extends `config/tsconfig.base.json` (Client: `config/tsconfig.base.client.json`), sets `rootDir: src` and `outDir: lib/types`, references workspace dependencies, and registers in one aggregate. Packages with distinct Host and Client compiler faces use `config/tsconfig.host.json` and `config/tsconfig.client.json` leaves plus a solution-only root; ordinary two-entry Client plugins do not split ([layout](../docs/development.md#typescript-project-layout)).
 - `src/types.ts` contains only types — no runtime code.
 - Tests live at package level under `tests/`, not `src/__tests__/`.
 - Update package README and JSDoc contracts in the same commit as behavior, and verify them against code with [dsh-prose-standard](../.agents/skills/dsh-prose-standard/SKILL.md). Group READMEs declare subsystem ownership through a canonical English page link or justified [exemption](../scripts/verify-subsystem-pages.ts).

@@ -295,6 +295,7 @@ function ciArtifactBuildGate(id = 'build', options: Partial<Gate> = {}): Gate {
 }
 
 function pnpmExec(id: string, args: string[], options: Partial<Gate> = {}): Gate {
+  if (args[0] === 'vitest' && !args.includes('--config')) args = [...args, '--config', 'config/vitest.config.ts']
   return {
     id,
     label: options.label ?? `pnpm exec ${args.join(' ')}`,
@@ -922,7 +923,7 @@ function builtBinSmokeGate(needs: string[] = ['build']): Gate {
     'vitest',
     'run',
     '--config',
-    'vitest.e2e.config.ts',
+    'config/vitest.e2e.config.ts',
     'apps/cli/tests/profiles/headless/tests/keyless-smoke.e2e.ts',
     'apps/cli/tests/profiles/headless/tests/source-tool.built.e2e.ts',
     'apps/cli/tests/built-bin.e2e.ts',

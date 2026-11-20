@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /**
  * Enforce JSDoc on every non-vendored package export. Functions and public
  * class methods require parameter and non-void return documentation; exported
@@ -8,7 +9,7 @@
  */
 
 import { existsSync, globSync, readFileSync } from 'node:fs'
-import { relative, resolve, sep } from 'node:path'
+import { dirname, relative, resolve, sep } from 'node:path'
 import ts from 'typescript'
 import { checkParams, checkReturns, parseJsDoc, parseTags, pointer, rawJsDoc } from './jsdoc.ts'
 
@@ -541,10 +542,10 @@ function restrictedPublicNames(
  * @returns compiler options for ts.createProgram.
  */
 function loadCompilerOptions(scanRoot: string): ts.CompilerOptions {
-  const cfgPath = resolve(scanRoot, 'tsconfig.base.json')
+  const cfgPath = repositoryConfig(scanRoot, 'tsconfig.base.json')
   if (!existsSync(cfgPath)) return { skipLibCheck: true, noLib: true, types: [] }
   const cfg = ts.readConfigFile(cfgPath, ts.sys.readFile.bind(ts.sys)) as { config?: unknown }
-  const parsed = ts.parseJsonConfigFileContent(cfg.config ?? {}, ts.sys, scanRoot)
+  const parsed = ts.parseJsonConfigFileContent(cfg.config ?? {}, ts.sys, dirname(cfgPath))
   return {
     ...parsed.options,
     noEmit: true,

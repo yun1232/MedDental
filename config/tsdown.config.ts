@@ -1,7 +1,8 @@
+import { fileURLToPath } from 'node:url'
 import { globSync } from 'node:fs'
 import { defineConfig } from 'tsdown'
-import { decoratorPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
-import { workspacePackageGlobs } from './scripts/workspace-package-globs.ts'
+import { decoratorPlugin } from '../packages/typert/generator/lib/types/tsdown-plugin.js'
+import { workspacePackageGlobs } from '../scripts/workspace-package-globs.ts'
 
 function isBuildFaceClient(value: unknown): boolean {
   if (value === undefined || value === 'host') return false
@@ -19,8 +20,9 @@ function isBuildFaceClient(value: unknown): boolean {
  */
 export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
-  const packages = workspacePackageGlobs(globSync(['vendor/*/package.json', 'packages/*/*/package.json'], { cwd: import.meta.dirname }))
+  const packages = workspacePackageGlobs(globSync(['vendor/*/package.json', 'packages/*/*/package.json'], { cwd: fileURLToPath(new URL('../', import.meta.url)) }))
   return {
+    cwd: fileURLToPath(new URL('../', import.meta.url)),
     workspace: [...packages, 'apps/cli'],
     entry: client ? '' : ['lib/types/{index,startup}.js'],
     outDir: 'lib',

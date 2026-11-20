@@ -68,7 +68,7 @@ async function runCoordinatorReadingConfigs(
   const configContents = new Map<string, string>()
   const runCommand = vi.fn(async (command: CoverageCommand) => {
     const configArgument = command.args.find(argument => argument.startsWith('--config='))
-    if (configArgument !== undefined) {
+    if (configArgument !== undefined && !command.args.some(arg => arg.startsWith('--merge-reports='))) {
       configContents.set(command.label, await readFile(join(root, configArgument.slice('--config='.length)), 'utf8'))
     }
     await writeBlob(command)
@@ -533,7 +533,7 @@ describe('coverage partition coordinator', () => {
     const runCommand = vi.fn(async (command: CoverageCommand) => {
       commands.push(command)
       const configArgument = command.args.find(argument => argument.startsWith('--config='))
-      if (configArgument !== undefined) {
+      if (configArgument !== undefined && !command.args.some(arg => arg.startsWith('--merge-reports='))) {
         partitionConfigs.push(await readFile(join(root, configArgument.slice('--config='.length)), 'utf8'))
       }
       await writeBlob(command)
@@ -584,7 +584,7 @@ describe('coverage partition coordinator', () => {
     expect(allConfigs).toContain('b.spec.ts')
     expect(allConfigs).toContain('c.spec.ts')
     for (const source of partitionConfigs) {
-      expect(source).toContain("from '../../vitest.config.ts'")
+      expect(source).toContain("from '../../config/vitest.config.ts'")
       expect(source).toContain("from '../../scripts/coverage-fork-diagnostics.ts'")
       expect(source).toContain('pool: coverageForkPool')
     }

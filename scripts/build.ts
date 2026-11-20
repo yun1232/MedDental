@@ -109,9 +109,9 @@ export function buildGates(
       gates.push({
         id: `${face}-check`,
         label: `${face} aggregate check`,
-        displayCommand: `tsc ${scope === 'typecheck' ? '-b' : '-p'} tsconfig.${face}.json`,
+        displayCommand: `tsc ${scope === 'typecheck' ? '-b' : '-p'} config/tsconfig.${face}.json`,
         command: process.execPath,
-        args: scope === 'typecheck' ? aggregateBuildArgs(face) : aggregateCheckArgs(face),
+        args: scope === 'typecheck' ? aggregateBuildArgs(face, root) : aggregateCheckArgs(face, root),
         needs: scope === 'check' ? [] : [`${face}-src`],
         env,
       })

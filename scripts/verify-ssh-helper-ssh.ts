@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Real OpenSSH acceptance against a glibc 2.28 container with no installed Node. */
 import assert from 'node:assert/strict'
 import { execFile, spawn } from 'node:child_process'
@@ -82,7 +83,7 @@ export async function verifySshTransport(argv: string[]): Promise<void> {
     const report = join(temporary, 'report.json')
     await runArtifactDriver(config, report, 'portable', {
       HOME: home, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, DSH_HOME: join(home, 'dsh'),
-      TSX_TSCONFIG_PATH: join(root, 'tsconfig.base.json'), DSH_TELEMETRY_DISABLED: '1', DSH_VERIFY_NO_NODE: '1',
+      TSX_TSCONFIG_PATH: repositoryConfig(root, 'tsconfig.base.json'), DSH_TELEMETRY_DISABLED: '1', DSH_VERIFY_NO_NODE: '1',
     })
     const evidence = { manifest, runtime: runtimeReportSchema.parse(JSON.parse(await readFile(report, 'utf8'))), glibc: await docker('exec', container, 'getconf', 'GNU_LIBC_VERSION') }
     assert.equal(evidence.glibc, 'glibc 2.28')

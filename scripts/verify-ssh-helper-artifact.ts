@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Unpack and run a release archive through the actual Loader-mounted SSH consumers. */
 import { spawn } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
@@ -133,7 +134,7 @@ export async function verifySshHelper(argv: string[]): Promise<void> {
     const helperHash = await fileDigest(executable)
     const environment = {
       HOME: home, PATH: process.env.PATH, DSH_HOME: join(home, 'dsh'),
-      TSX_TSCONFIG_PATH: join(root, 'tsconfig.base.json'), DSH_TELEMETRY_DISABLED: '1',
+      TSX_TSCONFIG_PATH: repositoryConfig(root, 'tsconfig.base.json'), DSH_TELEMETRY_DISABLED: '1',
       ...(values.backend === undefined ? {} : { DSH_EXPECT_SANDBOX_RUNNER: values.backend }),
     }
     const runs = await Promise.allSettled([0, 1].map(async (index) => {

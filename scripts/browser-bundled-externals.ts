@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Resolve direct third-party browser inputs through the shipping build configurations, without emitting files. */
 
 import { globSync, readFileSync, realpathSync } from 'node:fs'
@@ -68,15 +69,15 @@ function readManifest(path: string): Manifest {
  * @returns Exact and wildcard aliases for the Vite dependency walk.
  */
 export function browserSourceAliases(root: string): { find: RegExp; replacement: string }[] {
-  const path = resolve(root, 'tsconfig.base.json')
+  const path = repositoryConfig(root, 'tsconfig.base.json')
   const config = ts.readConfigFile(path, file => ts.sys.readFile(file))
   if (config.error !== undefined) throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root)
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(path))
   return Object.entries(parsed.options.paths ?? {}).map(([name, targets]) => {
     const target = targets[0]
     if (target === undefined) throw new Error(`browser notices: ${name} has no source target in ${path}`)
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '(.*)')
-    return { find: new RegExp(`^${escaped}$`), replacement: resolve(root, target).replace('*', '$1') }
+    return { find: new RegExp(`^${escaped}$`), replacement: resolve(dirname(path), target).replace('*', '$1') }
   })
 }
 
@@ -104,7 +105,7 @@ async function collectClientBundles(
       platform: 'browser',
       transform: client.define === undefined ? {} : { define: client.define },
       plugins: [recorder(seen, workspaceNames), client.plugins ?? []] as NonNullable<Rolldown.InputOptions['plugins']>,
-      tsconfig: resolve(root, 'tsconfig.base.client.json'),
+      tsconfig: repositoryConfig(root, 'tsconfig.base.client.json'),
     })
     try {
       await bundle.generate({ format: 'cjs', ...client.outputOptions, sourcemap: false })

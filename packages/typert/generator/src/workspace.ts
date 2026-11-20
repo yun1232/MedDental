@@ -186,7 +186,7 @@ export class WorkspaceTypertGenerator {
  */
 export function findWorkspaceRoot(start: string): string {
   let current = resolve(start)
-  while (!existsSync(join(current, 'tsconfig.host.json')) || !existsSync(join(current, 'packages'))) {
+  while ((!existsSync(join(current, 'config/tsconfig.host.json')) && !existsSync(join(current, 'tsconfig.host.json'))) || !existsSync(join(current, 'packages'))) {
     const parent = dirname(current)
     if (parent === current) throw new Error(`typert-generator: cannot find workspace root above ${start}`)
     current = parent

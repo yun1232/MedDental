@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Check that maintained packages have effective product use or an explicit non-default role. */
 
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
@@ -66,10 +67,10 @@ export function verifyProductUse(
   const configs = new Set<string>()
   const defaults: Reachability = { packages: new Set(), sources: new Set() }
   const optional: Reachability = { packages: new Set(), sources: new Set() }
-  const config = ts.readConfigFile(resolve(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
+  const config = ts.readConfigFile(repositoryConfig(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
   if (config.error !== undefined) throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'))
   const converted = ts.convertCompilerOptionsFromJson(
-    (config.config as { compilerOptions?: unknown }).compilerOptions, root,
+    (config.config as { compilerOptions?: unknown }).compilerOptions, dirname(repositoryConfig(root, 'tsconfig.base.json')),
   )
   if (converted.errors.length > 0) throw new Error(converted.errors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'))
   const host: ts.ModuleResolutionHost = { ...ts.sys, getCurrentDirectory: () => root }

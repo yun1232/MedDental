@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /**
  * Typecheck Markdown `ts` fences against the workspace API. `ignore-check` fences are reported as
  * opt-outs; generated catalog fragments and source-equivalence blocks are skipped here because their
@@ -8,7 +9,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import { builtDeclarationPath, isFrozenUpgradeGuidePath } from './doc-typecheck-paths.ts'
 import { markdownFences } from './markdown.ts'
@@ -68,7 +69,7 @@ const configHost: ts.ParseConfigFileHost = {
  * workspace paths via tsconfig.base.json.
  */
 function builtTypeCompilerOptions(): ts.CompilerOptions {
-  const configPath = join(root, 'tsconfig.host.json')
+  const configPath = repositoryConfig(root, 'tsconfig.host.json')
   const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, configHost)
   if (!parsed) throw new Error(`doc-typecheck: cannot parse ${configPath}`)
   if (parsed.errors.length > 0) {
@@ -142,7 +143,7 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[], blocks: Block[
  * not exist until source-only Typert generation has run.
  */
 function workspaceReferences(): { path: string }[] {
-  const file = join(root, 'tsconfig.host.json')
+  const file = repositoryConfig(root, 'tsconfig.host.json')
   // Parse with TypeScript's own JSONC reader: a regex comment stripper corrupts the `/*/` path
   // candidate in the workspace wildcard.
   const result = ts.readConfigFile(file, path => readFileSync(path, 'utf8'))
@@ -152,14 +153,14 @@ function workspaceReferences(): { path: string }[] {
   // `config` is typed `any` by the TS API; narrow it to the one field read here.
   const { references } = result.config as { references: { path: string }[] }
   return references.map(({ path }) => ({
-    path: path.startsWith('./') ? `../${path.slice(2)}` : `../${path}`,
+    path: `../${relative(root, resolve(dirname(file), path))}`,
   }))
 }
 
 /** The standalone temp project used when no coordinated build owns declaration freshness. */
 function tempTsconfig(): string {
   return JSON.stringify({
-    extends: '../tsconfig.host.json',
+    extends: '../config/tsconfig.host.json',
     compilerOptions: {
       noUnusedLocals: false,
       noUnusedParameters: false,

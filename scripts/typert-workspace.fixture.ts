@@ -1,3 +1,4 @@
+import { repositoryConfig } from './repository-config.ts'
 /** Minimal Typert workspace for specs of the bundle-free Typert pass and its build steps. */
 
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -83,7 +84,7 @@ export function writeCompiledDependency(root: string, compiled = true): string {
     compilerOptions: { rootDir: 'src', outDir: 'lib/types' },
     include: ['src'],
   }, null, 2)}\n`)
-  const aggregatePath = join(root, 'tsconfig.host.json')
+  const aggregatePath = repositoryConfig(root, 'tsconfig.host.json')
   const aggregate = JSON.parse(readFileSync(aggregatePath, 'utf8')) as { references: { path: string }[] }
   aggregate.references.push({ path: './packages/fixture/dep' })
   writeFixtureFile(aggregatePath, `${JSON.stringify(aggregate, null, 2)}\n`)

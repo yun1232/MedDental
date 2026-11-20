@@ -19,7 +19,7 @@ describe('generated tsconfig package aliases', () => {
     const session = aliases.find(alias => alias.specifier === '@deepseek-ai/dsh-session')
     expect(session).toEqual({
       specifier: '@deepseek-ai/dsh-session',
-      source: './packages/core/session/src',
+      source: '../packages/core/session/src',
     })
     // Sorted, so a package added anywhere lands in a stable spot in the diff.
     expect([...aliases].sort((a, b) => a.specifier.localeCompare(b.specifier))).toEqual(aliases)
@@ -30,15 +30,15 @@ describe('generated tsconfig package aliases', () => {
 
   it('yields to a hand-written alias and closes without a trailing comma', () => {
     const aliases = [
-      { specifier: '@deepseek-ai/dsh-a', source: './packages/g/a/src' },
-      { specifier: '@deepseek-ai/dsh-b', source: './packages/g/b/src' },
-      { specifier: '@deepseek-ai/dsh-c', source: './packages/g/c/src' },
+      { specifier: '@deepseek-ai/dsh-a', source: '../packages/g/a/src' },
+      { specifier: '@deepseek-ai/dsh-b', source: '../packages/g/b/src' },
+      { specifier: '@deepseek-ai/dsh-c', source: '../packages/g/c/src' },
     ]
     const body = renderAliases(aliases, new Set(['@deepseek-ai/dsh-a']))
 
     expect(body).toBe([
-      '      "@deepseek-ai/dsh-b": ["./packages/g/b/src"]',
-      '      "@deepseek-ai/dsh-c": ["./packages/g/c/src"]',
+      '      "@deepseek-ai/dsh-b": ["../packages/g/b/src"]',
+      '      "@deepseek-ai/dsh-c": ["../packages/g/c/src"]',
     ].join(',\n'))
     expect(body.endsWith(',')).toBe(false)
   })
@@ -78,7 +78,7 @@ describe('generated tsconfig package aliases', () => {
   })
 
   it('covers every workspace package in the committed config', () => {
-    const config = readFileSync(resolve(root, 'tsconfig.base.json'), 'utf8')
+    const config = readFileSync(resolve(root, 'config/tsconfig.base.json'), 'utf8')
     // Includes the packages the generator skips because their name does not
     // match their directory: those carry hand-written aliases.
     const names = collectPackageNames()
@@ -87,7 +87,7 @@ describe('generated tsconfig package aliases', () => {
   })
 
   it('leaves no wildcard that probes every package group', () => {
-    const config = readFileSync(resolve(root, 'tsconfig.base.json'), 'utf8')
+    const config = readFileSync(resolve(root, 'config/tsconfig.base.json'), 'utf8')
     // A wildcard lists one candidate per group, so resolving a package late in
     // the list costs a filesystem probe — and under tsx a decorated module
     // error — for every group before it.

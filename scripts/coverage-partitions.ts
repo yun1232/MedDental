@@ -212,7 +212,7 @@ async function collectInstrumentedFiles(
   inventoryPath: string,
   filters: readonly string[] = [],
 ): Promise<InstrumentedInventory> {
-  const invocation = pnpmInvocation(['exec', 'vitest', 'list', '--filesOnly', `--json=${inventoryPath}`, ...filters], { npm_execpath: pnpmEntrypoint })
+  const invocation = pnpmInvocation(['exec', 'vitest', 'list', '--config', 'config/vitest.config.ts', '--filesOnly', `--json=${inventoryPath}`, ...filters], { npm_execpath: pnpmEntrypoint })
   await runListCommand(invocation.command, invocation.args, root)
   return parseFileInventory(await readFile(inventoryPath, 'utf8'), root)
 }
@@ -437,7 +437,7 @@ function partitionConfigSource(
   const threadSafe = JSON.stringify(files.filter(file => projectOf.get(file) !== 'process-bound').map(file => file.split('\\').join('/')))
   const processBound = JSON.stringify(files.filter(file => projectOf.get(file) === 'process-bound').map(file => file.split('\\').join('/')))
   return [
-    "import base from '../../vitest.config.ts'",
+    "import base from '../../config/vitest.config.ts'",
     "import { coverageForkPool } from '../../scripts/coverage-fork-diagnostics.ts'",
     'export default {',
     '  ...base,',
@@ -636,6 +636,7 @@ export class CoveragePartitionCoordinator {
       'exec',
       'vitest',
       `--merge-reports=${this.relativePath(this.blobsRoot)}`,
+      '--config=config/vitest.config.ts',
       '--coverage',
     ], { npm_execpath: this.pnpmEntrypoint })
     return {

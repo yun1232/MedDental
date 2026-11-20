@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
@@ -8,7 +9,7 @@ import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 // `.env`, with provider-specific endpoint overrides where supported.
 try {
   // Node >= 21.7 native; throws when the file does not exist.
-  process.loadEnvFile(new URL('.env', import.meta.url).pathname)
+  process.loadEnvFile(new URL('../.env', import.meta.url).pathname)
 } catch {
   // No .env — fine, the environment may already carry the variables.
 }
@@ -29,6 +30,7 @@ function positiveIntFromEnv(name: string, fallback: number): number {
 const e2eMaxWorkers = positiveIntFromEnv('DSH_E2E_MAX_WORKERS', DEFAULT_E2E_MAX_WORKERS)
 
 export default defineConfig({
+  root: fileURLToPath(new URL('../', import.meta.url)),
   // Same resolution note as vitest.config.ts: bare workspace names resolve
   // through the tsconfig.base.json paths facade (no include = match-all, so
   // client-package sources get mapping too — dropping /client subpath imports
@@ -36,7 +38,7 @@ export default defineConfig({
   // Built-artifact e2e suites are unaffected: their built-ness lives in
   // subprocesses and createRequire lookups, which bypass vite resolution
   // entirely.
-  plugins: [tsconfigPaths({ projects: ['./tsconfig.base.json'] }), standardDecoratorPlugin()],
+  plugins: [tsconfigPaths({ projects: [new URL('./tsconfig.base.json', import.meta.url).pathname] }), standardDecoratorPlugin()],
   test: {
     execArgv: vitestExecArgv,
     setupFiles: ['./scripts/test-proxy-environment.ts'],

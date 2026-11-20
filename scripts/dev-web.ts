@@ -54,7 +54,7 @@ import { pnpmInvocation } from './pnpm-invocation.ts'
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
 /** Client-face type emit feeding every tsdown lib entry in the watch set. */
-const CLIENT_TYPE_PROGRAM = 'tsconfig.client.json'
+const CLIENT_TYPE_PROGRAM = 'config/tsconfig.client.json'
 
 /** Compile-shell workspace whose dist `dsh web` serves. */
 const SHELL_PACKAGE = '@deepseek-ai/dsh-web-frontend'
