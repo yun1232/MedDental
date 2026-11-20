@@ -1,0 +1,31 @@
+Oral memory SQLite schema migration
+
+Predecessor: application_id=0x4F4C4B31, user_version=1
+Successor:   application_id=0x4F4C4B31, user_version=2
+
+The writer accepts a new empty database, v1, or v2. All positive versions must
+carry the application marker. Unknown versions and unrelated databases fail.
+Initialization holds BEGIN IMMEDIATE and commits all DDL and user_version
+together. Existing lesion/experience/care/doctor memory and revisions rows are
+preserved. No old memory payload schema is rewritten.
+
+New tables:
+- memory_stats: version-specific use, feedback, protection and frequency.
+- delivery_packets: which references were actually returned to a caller.
+- memory_feedback: idempotent, actor-attributed feedback events.
+- frequency_events: explicit frequency-change audit records.
+- inquiry_cases: questionnaire state and optimistic revision.
+- workflow_events: idempotent request hashes, full requests and responses.
+- doctor_tasks: versioned target-field association for doctor questions.
+- doctor_answers: patient replies without editing the doctor's original note.
+
+Doctor question_status additionally accepts cancelled. Old readers may not
+understand this value. Do not downgrade a database once v2 writes are used.
+New fields, new tools and changed retrieval tie ordering are confined to the
+external oral-memory integration. Harness SessionEvent and SDK types are
+unchanged.
+
+Questionnaire versions are independent of the SQLite schema. An existing case
+whose template version or field IDs differ is refused with template_changed;
+it is not silently reset. Migrate such cases explicitly before changing an
+active deployment's questionnaire schema.

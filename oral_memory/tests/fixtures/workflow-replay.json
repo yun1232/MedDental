@@ -1,0 +1,15 @@
+{
+  "description": "Synthetic doctor and patient tool-call session replay with no model API",
+  "messages": [
+    {"name": "patient_turn", "arguments": {"encounter_id": "replay", "event_id": "r1", "expected_revision": 0, "message": "我想补充口腔情况", "intent": "provide_information", "observations": [], "writes": [], "doctor_answers": []}},
+    {"name": "patient_turn", "arguments": {"encounter_id": "replay", "event_id": "r2", "expected_revision": 1, "message": "在左侧颊黏膜", "intent": "provide_information", "observations": [{"field": "lesion_location", "status": "known", "value": "左侧颊黏膜", "source_ref": "synthetic/replay-2", "memory_refs": []}], "writes": [], "doctor_answers": []}},
+    {"name": "patient_turn", "arguments": {"encounter_id": "replay", "event_id": "r3", "expected_revision": 2, "message": "大约两个月了", "intent": "provide_information", "observations": [{"field": "symptom_duration", "status": "known", "value": "约两个月", "source_ref": "synthetic/replay-3", "memory_refs": []}], "writes": [], "doctor_answers": []}},
+    {"name": "patient_turn", "arguments": {"encounter_id": "replay", "event_id": "r4", "expected_revision": 3, "message": "先暂停一下", "intent": "pause", "observations": [], "writes": [], "doctor_answers": []}}
+  ],
+  "expected": [
+    {"revision": 1, "action": "ask", "field": "lesion_location", "question": "这次白色区域主要在口腔哪个位置？不方便描述时，可以提供当前照片。"},
+    {"revision": 2, "action": "ask", "field": "symptom_duration", "question": "这次大概是什么时候发现的？记不清具体日期也可以说大致时间。"},
+    {"revision": 3, "action": "ask", "field": "symptom_changes", "question": "从发现到现在，您注意到它有什么变化吗？"},
+    {"revision": 4, "action": "paused", "field": null, "question": null}
+  ]
+}

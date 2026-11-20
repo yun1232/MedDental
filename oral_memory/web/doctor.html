@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>口腔白斑 · 医生输入</title><link rel="stylesheet" href="/doctor.css"></head>
+<body><main>
+<header><span class="eyebrow">ORAL LEUKOPLAKIA</span><h1>医生输入工作台</h1><p>查看患者信息，补充证据，安排下一步追问。</p></header>
+<section class="connection"><label>访问凭据<input id="token" type="password" autocomplete="off" placeholder="输入本地医生访问凭据"></label><label>就诊编号<input id="encounter" value="current"></label><button id="load">读取病例</button></section>
+<p id="status" role="status">连接后显示当前宿主绑定的患者。</p>
+<div class="columns"><section class="card"><h2>问询进度</h2><p id="case-meta">尚未读取</p><div id="fields"></div><h3>待完成的医生追问</h3><div id="questions"></div><h3>下一步</h3><p id="next">—</p></section>
+<section class="card"><h2>提交医生意见</h2><form id="submit-form"><label>操作类型<select id="note-type"><option value="supplement">补充信息</option><option value="correction">纠正信息</option><option value="follow_up">安排追问</option><option value="final_diagnosis">最终诊断</option></select></label>
+<label>关联问询字段<select id="target"><option value="">仅记录意见</option></select></label>
+<label>内容<textarea id="description" rows="4" required placeholder="填写补充内容、追问问题或诊断结论"></textarea></label>
+<label>信息来源或依据<input id="source" required placeholder="例如：本次医生复核或报告标识"></label>
+<label>同步更新字段状态<select id="field-status"><option value="">不更新字段</option><option value="known">已明确</option><option value="denied">明确否认</option><option value="uncertain">仍不确定</option><option value="deferred">暂缓补充</option></select></label>
+<label>字段内容<input id="field-value" placeholder="同步更新时填写"></label>
+<label class="check"><input id="confirmed" type="checkbox" required>我已核对上述输入并确认提交</label><button type="submit">确认提交</button></form>
+<details><summary>已有追问的处理</summary><label>追问记录 ID<input id="question-id"></label><label>操作<select id="question-action"><option value="cancelled">取消追问</option><option value="answered">医生确认已回答</option></select></label><label>回答摘要<input id="question-answer"></label><button id="update-question" type="button">确认更新追问</button></details></section></div>
+<section class="card"><h2>四类记忆</h2><p>所有记录保留。低频只影响同等相关记录的选择；效用分由反馈计算。</p><div id="memories"></div></section>
+</main><script src="/doctor.js"></script></body></html>
