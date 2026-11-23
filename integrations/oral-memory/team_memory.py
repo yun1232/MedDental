@@ -19,6 +19,7 @@ from schemas import MemoryError, validate, obj, text, strings, PHENOTYPE
 from extensions import reference
 from retrieval import descriptor_text, known
 from case_library import CaseLibrary, record_id as published_record_id
+from store import BUSINESS_CATEGORIES
 from team_schemas import OUTPUTS, check_output, REGION, array
 from workflow import PatientCommunicationAgent
 
@@ -227,7 +228,7 @@ class MedicalProject:
         run = self.run(run_id)
         return {"case": self.state(run["encounter_id"]), "run": run,
                 "longitudinal": self.inquiry.case_state({"encounter_id": run["encounter_id"]}),
-                "current_memories": {category: [r for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]] for category in ("lesion", "experience", "care", "doctor")},
+                "current_memories": {category: [r for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]] for category in BUSINESS_CATEGORIES},
                 "doctor_notes": [r for r in self.store.records("doctor") if r["encounter_id"] == run["encounter_id"]][-10:],
                 "prior_reviews": [{"encounter_id": r["encounter"], "input_revision": r["revision"],
                                    "doctor_review": json.loads(r["payload"])["doctor_review"]}
@@ -369,28 +370,33 @@ class MedicalProject:
         patient = self.latest(run, "patient")
         if not patient:
             fail("missing_intake", "Patient assessment must precede retrieval")
-        features = dict(patient.get("features", {}))
-        descriptions = list(patient["phenotype"])
+        history = patient.get("patient_experiences", patient.get("history", []))
+        history_text = " ".join(history).strip()
+        if not history_text:
+            history_text = " ".join(r["description"] + " " + r.get("outcome", "") for r in self.store.records("patient_experience") if r["encounter_id"] == run["encounter_id"])
+        features = {"text": "unknown"}
         if key == "key2":
+            features = dict(patient.get("features", {}))
+            descriptions = list(patient["phenotype"])
             visual = self.latest(run, "visual")
             views = {v["view_id"]: v for v in run["views"]}
             for finding in visual["findings"]:
                 if finding["certainty"] == "clear" and any(v == finding["image_id"] or views.get(v, {}).get("kind") == "crop" for v in finding["supporting_views"]):
                     descriptions.extend([finding["description"], *finding["tags"]])
-        if extra:
-            validate(extra, text())
-            descriptions.append(extra)  # search expansion, not evidence validation
-        combined = " ".join([features.get("text", ""), *descriptions]).strip()
-        if combined:
-            features["text"] = combined
-        if not features:
-            features = {"text": "unknown"}
+            if extra:
+                validate(extra, text())
+                descriptions.append(extra)
+            combined = " ".join([features.get("text", ""), *descriptions]).strip()
+            if combined:
+                features["text"] = combined
+            if not features:
+                features = {"text": "unknown"}
         excluded = [r["record_id"] for category in ("lesion", "experience", "care", "doctor")
                     for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]]
         if len(excluded) > 100:
             fail("context_limit", "Current encounter exceeds the bounded exclusion budget")
-        return {"lesion_query": features, "care_query": " ".join(patient["history"]),
-                "experience_query": " ".join(patient["history"]), "doctor_query": combined,
+        return {"purpose": "visual" if key == "key1" else "diagnosis", "patient_experience_query": history_text,
+                "lesion_query": features, "care_query": "", "experience_query": "", "doctor_query": "",
                 "exclude_record_ids": excluded, "top_k": self.candidate_limit}
 
     def _candidate(self, item, result):
@@ -402,13 +408,11 @@ class MedicalProject:
             case = self.library.published(lesion["case_id"], lesion["version"])
             identifier = case["case_id"]
         else:
-            identifier = "personal:" + digest([self.patient, lesion["record_id"]])[:32]
-            experience = [m["record"]["description"] for m in result["supplementary"]["experience"]
-                          if m["record"].get("patient_id") == self.patient and
-                          (lesion["lesion_id"] in m["record"].get("lesion_ids", []) or m["record"]["encounter_id"] == lesion["encounter_id"])]
+            identifier = "personal:" + digest([self.patient, lesion["record_id"]] if lesion["category"] == "lesion" else [self.patient, lesion["category"], lesion["record_id"]])[:32]
+            experience = [e["record"]["description"] + " " + e["record"].get("outcome", "") for e in item.get("patient_experience", [])]
             notes = [m["record"]["description"] for m in result["supplementary"]["doctor"] if m["record"].get("patient_id") == self.patient]
             case = {"case_id": identifier, "version": lesion["version"], "domain": self.domain,
-                    "phenotype": [descriptor_text(lesion)], "context": experience,
+                    "phenotype": [descriptor_text(lesion)] if lesion["category"] == "lesion" else [], "context": experience,
                     "evidence": ["来源：" + lesion["source_ref"], *notes],
                     "experience": " ".join(c["record"]["description"] for c in item["care"]),
                     "pitfalls": [], "outcome": " ".join(c["record"]["outcome"] for c in item["care"]),
@@ -416,9 +420,11 @@ class MedicalProject:
                     "images": [v["image"] for v in lesion.get("visual", [])],
                     "regions": [r for v in lesion.get("visual", []) for r in v["regions"]]}
         return {**case, "case_id": identifier, "memory_scope": scope, "memory_reference": ref,
-                "memory_retrieval_id": packet["retrieval_id"], "lesion_id": lesion["lesion_id"],
+                "memory_retrieval_id": packet["retrieval_id"], "lesion_id": lesion.get("lesion_id", ""),
+                "patient_experience": item.get("patient_experience", []), "patient_experience_score": item.get("patient_experience_score", 0),
+                "retrieval_channels": result.get("retrieval_channels", []),
                 "phenotype_score": item["phenotype_score"], "care_score": item["care_score"],
-                "history_score": item["care_score"], "utility": lesion["stats"]["utility_score"],
+                "history_score": item.get("patient_experience_score", item["care_score"]), "utility": lesion["stats"]["utility_score"],
                 "decay_score": lesion["stats"]["decay_score"], "frequency": lesion["stats"]["frequency"], "exposures": lesion["stats"]["exposure_count"],
                 "associated_care": item["care"], "visual_annotations": lesion.get("visual", [])}
 
@@ -453,7 +459,8 @@ class MedicalProject:
             response = {"retrieval_id": result["retrieval_id"], "key": key, "query": arguments,
                         "cases": cases, "initial_candidates": [{"case_id": c["case_id"], "version": c["version"]} for c in fresh], "stage": "initial_retrieval", "status": result["status"], "required_context": result["required_context"],
                         "supplementary": result["supplementary"], "source_packets": result["source_packets"],
-                        "searched_entire_domain": True, "scoring": "initial: phenotype DESC > care DESC; model reranking: M * D, then Top-K",
+                        "searched_entire_domain": True, "retrieval_channels": result.get("retrieval_channels", []),
+                        "scoring": "initial: patient experience only; model reranking: M * D, then Top-K" if key == "key1" else "initial: lesion description + patient experience; model reranking: M * D, then Top-K",
                         "ranking": result["ranking"], "algorithm": result["algorithm"] if "algorithm" in result else "original hierarchical memory retrieval"}
             run["retrievals"].append(response)
             self._write_run(run)

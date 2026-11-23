@@ -1,4 +1,4 @@
-"""Four separately indexed SQLite memories, bound to one patient by the host."""
+"""Three business memory groups with version-stable legacy storage, bound to one patient."""
 
 import json
 import math
@@ -8,14 +8,16 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from retrieval import hierarchical, rank_text, render_lesion
+from retrieval import hierarchical, staged, rank_text, render_lesion
 from schemas import GET, PHENOTYPE, RECORDS, RETRIEVE, SEARCH, WRITE_SCHEMAS, MemoryError, validate
 from extensions import UtilityMixin, create_tables
 from visual_memory import VisualMemoryMixin
 
 APPLICATION_ID = 0x4F4C4B31
 SCHEMA_VERSION = 2
+# Backing categories preserve old record/feedback identities; new business has one experience category.
 CATEGORIES = tuple(RECORDS)
+BUSINESS_CATEGORIES = ("lesion", "patient_experience", "doctor")
 
 
 def settings_from_env(env):
@@ -118,6 +120,9 @@ class MemoryStore(VisualMemoryMixin, UtilityMixin):
                                 f"ON {category}_memory(patient_id,encounter_id)")
                 self.db.execute(f"CREATE INDEX IF NOT EXISTS {category}_by_lesion "
                                 f"ON {category}_memory(patient_id,lesion_id)")
+            self.db.execute("""CREATE VIEW IF NOT EXISTS patient_experience_memory AS
+                SELECT *, 'experience' AS origin_category FROM experience_memory
+                UNION ALL SELECT *, 'care' AS origin_category FROM care_memory""")
             create_tables(self.db)
             self.db.execute(f"PRAGMA application_id={APPLICATION_ID}")
             self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
@@ -180,6 +185,9 @@ class MemoryStore(VisualMemoryMixin, UtilityMixin):
 
     def put(self, category, arguments):
         """Atomically append a revision and replace current data, with optimistic locking."""
+        if category == "patient_experience":
+            from patient_experience import put
+            return put(self, arguments)
         if category not in CATEGORIES:
             raise MemoryError("invalid_input", "Unknown memory category")
         validate(arguments, WRITE_SCHEMAS[category])
@@ -221,6 +229,12 @@ class MemoryStore(VisualMemoryMixin, UtilityMixin):
 
     def records(self, category):
         """Load one patient's category; refuse oversize scans rather than hide truncation."""
+        if category == "patient_experience":
+            from patient_experience import normalize
+            rows = self.db.execute("SELECT * FROM patient_experience_memory WHERE patient_id=? LIMIT ?", (self.patient_id, self.settings["max_scan_records"] + 1)).fetchall()
+            if len(rows) > self.settings["max_scan_records"]:
+                raise MemoryError("scan_limit", "Patient experience exceeds the unified scan budget")
+            return [normalize(self._decode(row, row["origin_category"])) for row in rows]
         rows = self.db.execute(f"SELECT * FROM {category}_memory WHERE patient_id=? LIMIT ?",
                                (self.patient_id, self.settings["max_scan_records"] + 1)).fetchall()
         if len(rows) > self.settings["max_scan_records"]:
@@ -244,6 +258,20 @@ class MemoryStore(VisualMemoryMixin, UtilityMixin):
                                    "actor_role": item["actor_role"], "changed_at": item["changed_at"]}
                                   for item in versions]
         return result
+
+    def get_patient_experience(self, arguments):
+        from schemas import PATIENT_EXPERIENCE_GET
+        from patient_experience import normalize
+        validate(arguments, PATIENT_EXPERIENCE_GET)
+        ref = arguments["reference"]
+        if ref["category"] not in ("experience", "care"):
+            raise MemoryError("invalid_category", "Patient experience reference must identify an oral/care event")
+        value = self.get({"category": ref["category"], "record_id": ref["record_id"], "include_versions": arguments["include_versions"]})
+        if value["record"]["version"] != ref["version"]:
+            raise MemoryError("version_conflict", "Re-read the current patient experience version")
+        if "versions" in value:
+            value["versions"] = [{**item, "record": normalize({**item["record"], "category": ref["category"], "version": item["version"]})} for item in value["versions"]]
+        return {**value, "record": normalize(value["record"])}
 
     def search(self, arguments):
         """Search exactly one category, independently of hierarchical case ranking."""
@@ -271,8 +299,9 @@ class MemoryStore(VisualMemoryMixin, UtilityMixin):
                 for category in CATEGORIES:
                     records[category].extend(source.records(category))
             settings = {**self.settings, "initial_only": initial_only}
-            result = hierarchical(records, arguments, settings)
-            if initial_only:
+            purpose = arguments.get("purpose", "legacy")
+            result = staged(records, arguments, settings, purpose) if purpose != "legacy" else hierarchical(records, arguments, settings)
+            if initial_only and purpose == "legacy":
                 result["ranking"] = ["phenotype_score DESC", "care_score DESC", "stable initial ties; iteration score applied only after model scoring"]
             from workflow import PatientCommunicationAgent
             result["required_context"] = PatientCommunicationAgent(self).required_context(arguments.get("encounter_id"))

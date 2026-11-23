@@ -149,3 +149,71 @@ def hierarchical(records, query, settings):
             "stage1_truncated": count > settings["recall_limit"],
             "ranking": ["phenotype_score DESC", "care_score DESC", "utility/frequency sampling within equal relevance"],
             "algorithm": "structured field matching + lexical token coverage; no embedding model"}
+
+
+def staged(records, query, settings, purpose):
+    """Phase-specific retrieval on the same records: history-only, then phenotype+history."""
+    from patient_experience import normalize as as_experience
+    from extensions import reference
+    excluded = set(query.get('exclude_record_ids', []))
+    filtered = {category: [r for r in values if r['record_id'] not in excluded] for category, values in records.items()}
+    experiences = [*filtered['experience'], *filtered['care']]
+    history_query = query.get('patient_experience_query', '')
+    has_history = bool(known(history_query) and tokens(history_query))
+    # Visual-stage code never calls phenotype_score, even if a caller supplies descriptors.
+    has_phenotype = purpose == 'diagnosis' and phenotype_score(query['lesion_query'], {'features': {
+        name: [] if name == 'tooth_positions' else 'unknown' for name in settings['weights'] if name != 'text'
+    }}, settings['weights'])[0] is not None
+    channels = ['patient_experience'] if purpose == 'visual' else ['lesion', 'patient_experience']
+    order = ['patient_experience_score DESC'] if purpose == 'visual' else ['phenotype_score DESC', 'patient_experience_score DESC']
+    result = {'candidates': [], 'supplementary': {'patient_experience': [], 'doctor': []},
+              'retrieval_channels': channels, 'ranking': [*order, 'model M * iteration D follows initial retrieval'],
+              'algorithm': 'shared memory fields and lexical matching with phase-specific query channels'}
+    if not has_history and not has_phenotype:
+        return {**result, 'status': 'needs_clarification', 'reason': 'Patient experience is required before visual retrieval' if purpose == 'visual' else 'No known phenotype or patient experience'}
+    lesions = filtered['lesion']
+    if 'encounter_id' in query:
+        lesions = [r for r in lesions if r['encounter_id'] == query['encounter_id']]
+    groups = [(lesion, [e for e in experiences if associated(e, lesion)]) for lesion in lesions]
+    # Experience-only older cases stay usable; no fabricated phenotype record is required.
+    orphans = {}
+    for event in experiences:
+        if any(associated(event, lesion) for lesion in lesions):
+            continue
+        if 'encounter_id' in query and event['encounter_id'] != query['encounter_id']:
+            continue
+        identity = (event.get('patient_id'), event['encounter_id'], tuple(sorted(event.get('lesion_ids', []))))
+        orphans.setdefault(identity, []).append(event)
+    groups.extend((max(events, key=lambda r: (r['updated_order'], r['category'], r['record_id'])), events) for events in orphans.values())
+    candidates = []
+    for anchor, events in groups:
+        history_score = max((text_score(history_query, e['search_text']) for e in events), default=0) if has_history else 0
+        score, matches = (phenotype_score(query['lesion_query'], anchor, settings['weights'])
+                          if has_phenotype and anchor['category'] == 'lesion' else (0, {}))
+        score = score or 0
+        if purpose == 'visual' and history_score <= 0:
+            continue
+        if purpose == 'diagnosis' and history_score <= 0 and (score <= 0 or score < settings['min_phenotype_score']):
+            continue
+        event_context = sorted([{'record': as_experience(e), 'score': text_score(history_query, e['search_text']) if has_history else 0} for e in events],
+                               key=lambda x: (-x['score'], -x['record']['updated_order']))[:settings['per_category_limit']]
+        care_context = [{'record': e, 'score': text_score(history_query, e['search_text']) if has_history else 0} for e in events if e['category'] == 'care']
+        candidates.append({'lesion': anchor, 'phenotype_score': score, 'field_matches': matches,
+                           'patient_experience': event_context, 'patient_experience_score': history_score,
+                           'care': care_context[:settings['per_category_limit']],
+                           'care_score': max((c['score'] for c in care_context), default=0)})
+    keys = ['patient_experience_score'] if purpose == 'visual' else ['phenotype_score', 'patient_experience_score']
+    candidates.sort(key=lambda x: (*(-x[k] for k in keys), -x['lesion']['updated_order'], x['lesion']['record_id']))
+    matched = len(candidates)
+    initial_settings = {**settings, 'initial_only': True}
+    selected = select_ties(candidates[:settings['recall_limit']], query['top_k'], keys, 'lesion', initial_settings)
+    events = {}
+    for c in selected:
+        for event in c['patient_experience']:
+            ref = reference(event['record'])
+            events[(event['record'].get('patient_id'), ref['category'], ref['record_id'], ref['version'])] = event
+    # Doctor notes are context after selection and never a visual recall channel.
+    notes = [n for n in filtered['doctor'] if any(associated(n, c['lesion']) for c in selected if c['lesion']['category'] == 'lesion')]
+    return {**result, 'status': 'ok' if selected else 'no_match', 'candidates': selected,
+            'supplementary': {'patient_experience': list(events.values()), 'doctor': rank_text(notes, '', settings['per_category_limit'])},
+            'stage1_match_count': matched, 'stage1_truncated': matched > settings['recall_limit']}

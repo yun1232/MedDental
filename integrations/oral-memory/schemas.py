@@ -65,6 +65,11 @@ WRITE_SCHEMAS = {
                   ("record", "expected_version"))
     for category, schema in RECORDS.items()
 }
+PATIENT_EXPERIENCE = obj({**COMMON, **LINKS, "event_kind": choice("oral", "care"),
+    "description": text(), "experience_type": RECORDS["experience"]["properties"]["experience_type"],
+    "care_type": RECORDS["care"]["properties"]["care_type"], "outcome": text(empty=True)},
+    (*COMMON, "lesion_ids", "event_kind", "description"))
+PATIENT_EXPERIENCE_WRITE = obj({"record": PATIENT_EXPERIENCE, "expected_version": {"type": "integer", "minimum": 0}}, ("record", "expected_version"))
 QUERY_FEATURES = obj({**PHENOTYPE, "text": text()})
 QUERY_FEATURES["minProperties"] = 1
 RETRIEVE = obj({
@@ -72,9 +77,10 @@ RETRIEVE = obj({
     "experience_query": text(empty=True), "doctor_query": text(empty=True),
     "encounter_id": text(), "exclude_record_ids": strings(),
     "top_k": {"type": "integer", "minimum": 1, "maximum": 50},
+    "purpose": choice("legacy", "visual", "diagnosis"), "patient_experience_query": text(empty=True),
 }, ("lesion_query", "care_query", "experience_query", "doctor_query", "top_k"))
 SEARCH = obj({
-    "category": choice(*RECORDS), "query": text(empty=True),
+    "category": choice(*RECORDS, "patient_experience"), "query": text(empty=True),
     "encounter_id": text(), "lesion_id": text(),
     "note_type": choice("supplement", "correction", "follow_up", "final_diagnosis"),
     "question_status": choice("not_applicable", "open", "answered", "cancelled"),
@@ -85,6 +91,7 @@ GET = obj({"category": choice(*RECORDS), "record_id": text(),
 
 REFERENCE = obj({"category": choice(*RECORDS), "record_id": text(),
                  "version": {"type": "integer", "minimum": 1}}, ("category", "record_id", "version"))
+PATIENT_EXPERIENCE_GET = obj({"reference": REFERENCE, "include_versions": {"type": "boolean"}}, ("reference", "include_versions"))
 FEEDBACK = obj({"event_id": text(), "retrieval_id": text(), "reference": REFERENCE,
                 "kind": choice("used", "helpful", "not_helpful", "unused_opportunity"),
                 "reason": text()}, ("event_id", "retrieval_id", "reference", "kind", "reason"))
@@ -101,7 +108,7 @@ PATIENT_TURN = obj({
     "encounter_id": text(), "event_id": text(), "expected_revision": {"type": "integer", "minimum": 0},
     "message": text(), "intent": choice("provide_information", "ask_question", "pause"),
     "observations": {"type": "array", "items": OBSERVATION, "maxItems": 30},
-    "writes": {"type": "array", "items": obj({"category": choice("lesion", "experience", "care"),
+    "writes": {"type": "array", "items": obj({"category": choice("lesion", "patient_experience", "experience", "care"),
         "record": {"type": "object", "properties": {}, "additionalProperties": True},
         "expected_version": {"type": "integer", "minimum": 0}},
         ("category", "record", "expected_version")), "maxItems": 30},
@@ -115,7 +122,7 @@ DOCTOR_SUBMIT = obj({
     "confirmed": {"type": "boolean"}, "note": RECORDS["doctor"],
     "expected_note_version": {"type": "integer", "minimum": 0}, "target_field": text(empty=True),
     "observations": {"type": "array", "items": OBSERVATION, "maxItems": 30},
-    "updates": {"type": "array", "items": obj({"category": choice("lesion", "experience", "care"),
+    "updates": {"type": "array", "items": obj({"category": choice("lesion", "patient_experience", "experience", "care"),
         "record": {"type": "object", "properties": {}, "additionalProperties": True},
         "expected_version": {"type": "integer", "minimum": 0}},
         ("category", "record", "expected_version")), "maxItems": 30},
@@ -177,11 +184,13 @@ def tools(role):
             "Never infer histopathology from an image. Only a doctor host may confirm records."
         ), "inputSchema": deepcopy(schema)})
     result.extend([
+        {"name": "put_patient_experience", "description": "Persist one unified patient experience: oral symptoms/habits or care/examination/treatment/follow-up. event_kind selects the subtype; source, versions and original feedback references are preserved.", "inputSchema": PATIENT_EXPERIENCE_WRITE},
+        {"name": "get_patient_experience", "description": "Read one unified patient experience using its stable storage_reference; oral/care records remain one business category.", "inputSchema": PATIENT_EXPERIENCE_GET},
         {"name": "case_state", "description": "Read persistent inquiry fields, pending questions and case revision.", "inputSchema": CASE},
         {"name": "patient_turn", "description": "Commit extracted patient information and memory writes atomically; return one next question with memory context. Use event_id for retry and the current case revision.", "inputSchema": PATIENT_TURN},
         {"name": "memory_feedback", "description": "Record actual use of a delivered memory reference. Patient callers may report used only; doctor feedback controls utility. Scores are never supplied by the model.", "inputSchema": FEEDBACK},
         {"name": "retrieve", "description": (
-            "Initial hierarchical oral memory retrieval: stage 1 recalls lesion descriptors; stage 2 "
+            "Select purpose=visual for patient-experience-only retrieval before visual analysis; purpose=diagnosis for lesion descriptors plus patient experience after visual analysis. The default legacy mode retains historical clients: stage 1 recalls lesion descriptors; stage 2 "
             "scores ONLY associated care records. Strict order is phenotype score first, care "
             "score second (priority levels, not numeric weights). Experience and doctor notes "
             "are searched separately and never change that order. Empty phenotype needs clarification."

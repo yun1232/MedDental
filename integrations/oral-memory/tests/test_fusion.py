@@ -32,7 +32,11 @@ class FusionTests(unittest.TestCase):
     publish_case = fixtures.TeamTests.publish_case
 
     def put(self, record, category='lesion'):
-        return self.p.store.put(category, {'record': record, 'expected_version': 0})['record']
+        result = self.p.store.put(category, {'record': record, 'expected_version': 0})['record']
+        if category == 'lesion':
+            history = narrative('experience','history-'+record['record_id'],record['encounter_id'],description='持续三个月',links=[record['lesion_id']])
+            self.p.store.put('experience',{'record':history,'expected_version':0})
+        return result
 
     def assess(self, features=None, phenotype=None):
         run = self.start()
@@ -84,6 +88,8 @@ class FusionTests(unittest.TestCase):
 
     def test_final_score_is_model_times_iteration_once_and_does_not_update_memory(self):
         a = self.put(lesion('a', 'prior-a')); b = self.put(lesion('b', 'prior-b', site='舌'))
+        history_b = narrative('experience','history-b','prior-b',description='三个月',links=['b'])
+        self.p.store.put('experience',{'record':history_b,'expected_version':1})
         doctor = self.project('patient-a', 'doctor')
         for i in range(6): self.verdict(doctor, reference(a), event='a'+str(i))
         for i in range(2): self.verdict(doctor, reference(b), event='b'+str(i))
@@ -104,6 +110,7 @@ class FusionTests(unittest.TestCase):
     def test_key2_unions_and_rescores_old_and_new_candidates_with_frozen_stage_scores(self):
         a = self.put(lesion('white', 'prior-white'))
         self.put(lesion('red', 'prior-red', color='红色', morphology='红色区域'))
+        self.p.store.put('experience',{'record':narrative('experience','history-red','prior-red',description='幼年外伤',links=['red']),'expected_version':1})
         self.p.top_k = self.p.candidate_limit = 1
         run = self.assess(phenotype=['白色'])
         first = self.p.retrieve(run, 'key1')

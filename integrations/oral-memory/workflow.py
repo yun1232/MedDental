@@ -267,18 +267,11 @@ class PatientCommunicationAgent:
             self.store.db.execute("""INSERT INTO inquiry_cases VALUES (?,?,?,?) ON CONFLICT(patient_id,encounter_id)
                 DO UPDATE SET revision=excluded.revision,state=excluded.state""", (self.store.patient_id,
                 arguments["encounter_id"], revision+1, json.dumps(state, ensure_ascii=False)))
-            latest = [record for record in self.store.records("lesion") if record["encounter_id"] == arguments["encounter_id"]]
-            phenotype = {}
-            if latest:
-                features = max(latest, key=lambda item: item["updated_order"])["features"]
-                phenotype = {key: value for key, value in features.items() if (isinstance(value, list) and value) or (isinstance(value, str) and known(value))}
-            if not phenotype and state["fields"].get("lesion_location", {}).get("status") == "known":
-                phenotype = {"site": state["fields"]["lesion_location"]["value"]}
-            if phenotype:
-                response["memory_context"] = self.store.retrieve({"encounter_id": arguments["encounter_id"], "lesion_query": phenotype,
-                    "care_query": "", "experience_query": "", "doctor_query": "", "top_k": 5})
-            else:
-                response["memory_context"] = self.store._deliver({"status": "needs_clarification", "required_context": self.required_context(arguments["encounter_id"])})
+            events = [record for record in self.store.records("patient_experience") if record["encounter_id"] == arguments["encounter_id"]]
+            history_query = " ".join(r["description"] + " " + r.get("outcome", "") for r in events)
+            response["memory_context"] = self.store.retrieve({"purpose": "visual", "patient_experience_query": history_query,
+                "encounter_id": arguments["encounter_id"], "lesion_query": {"text": "unknown"},
+                "care_query": "", "experience_query": "", "doctor_query": "", "top_k": 5})
             self._save(arguments, state, revision+1, digest, response)
             return response
 

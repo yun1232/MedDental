@@ -148,6 +148,9 @@ class CaseLibrary(MemoryStore):
         raise MemoryError("read_only_projection", "Use the authorized case-publication path to change published snapshots")
 
     def records(self, category):
+        if category == "patient_experience":
+            from patient_experience import normalize
+            return [normalize(r) for origin in ("experience", "care") for r in self.records(origin)]
         if category not in CATEGORIES:
             raise MemoryError("invalid_input", "Unknown memory category")
         rows = self.db.execute("SELECT rowid,* FROM cases WHERE domain=? ORDER BY rowid LIMIT ?", (self.domain, self.settings["max_scan_records"] + 1)).fetchall()

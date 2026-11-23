@@ -12,7 +12,7 @@ import { JSDOM, VirtualConsole } from 'jsdom'
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const directory = await mkdtemp(resolve(tmpdir(), 'medical-doctor-dom-'))
 const python = process.env.ORAL_MEMORY_PYTHON || 'python3'
-const setup = "import sys; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory/tests'); from test_team import TeamTests; t=TeamTests(); t.path=Path(sys.argv[1]); t.resources=[]; t.p=t.project('synthetic-team-dom'); t.complete(); [(p.close(),s.close()) for p,s in reversed(t.resources)]"
+const setup = "import sys; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory/tests'); from test_team import TeamTests; t=TeamTests(); t.path=Path(sys.argv[1]); t.resources=[]; t.p=t.project('synthetic-team-dom'); from test_memory import narrative; [t.p.store.put(c,{'record':narrative(c,'event-'+c,'visit',description='持续三个月'),'expected_version':0}) for c in ('experience','care')]; t.complete(); [(p.close(),s.close()) for p,s in reversed(t.resources)]"
 execFileSync(python, ['-c', setup, directory], { cwd: root })
 const child = spawn(python, [resolve(root, 'integrations/oral-memory/doctor_portal.py'), '--port', '0'], {
   env: { PATH: process.env.PATH, ORAL_MEMORY_DB: resolve(directory, 'private.sqlite3'), ORAL_MEMORY_PATIENT_ID: 'synthetic-team-dom',
@@ -43,6 +43,10 @@ try {
     while (!test()) { if (Date.now() > deadline) throw new Error('Doctor team UI timed out: ' + el('medical-status').textContent); await new Promise(r => setTimeout(r, 10)) }
   }
   el('token').value = 'synthetic-team-dom-token'; el('encounter').value = 'visit'
+  el('load').click()
+  await waitFor(() => el('memories').textContent.includes('患者经历'))
+  assert.ok(!el('memories').textContent.includes('口腔经历'))
+  assert.ok(!el('memories').textContent.includes('诊疗经历'))
   el('medical-load').click()
   await waitFor(() => el('medical-status').textContent.includes('当前病例 v1'))
   assert.equal(doc.querySelectorAll('#medical-images img').length, 3)

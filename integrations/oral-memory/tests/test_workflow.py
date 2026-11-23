@@ -70,7 +70,7 @@ class WorkflowTests(unittest.TestCase):
         second = self.agent.patient_turn(request)
         self.assertEqual(first, second)
         self.assertEqual(len(self.patient.records("lesion")), 1)
-        self.assertEqual(self.patient.records("lesion")[0]["stats"]["exposure_count"], 1)
+        self.assertEqual(self.patient.records("lesion")[0]["stats"]["exposure_count"], 0)  # phenotype alone no longer triggers pre-visual recall
         with self.assertRaisesRegex(MemoryError, "reused"):
             self.agent.patient_turn({**request, "message": "changed"})
 

@@ -23,7 +23,7 @@ function scoringContext(context) {
   const filtered = { ...context, run: { run_id: context.run.run_id, revision: context.run.revision,
     outputs: context.run.outputs.filter(o => ['patient', 'visual'].includes(o.role)),
     views: context.run.views, retrievals: latest ? [latest] : [] } }
-  const hidden = new Set(['stats', 'utility', 'decay_score', 'frequency', 'exposures', 'final_score', 'source_packets', 'memory_retrieval_id'])
+  const hidden = new Set(['stats', 'utility', 'decay_score', 'frequency', 'exposures', 'final_score', 'source_packets', 'memory_retrieval_id', 'care_score', 'associated_care', 'history_score'])
   function redact(value) {
     if (Array.isArray(value)) return value.map(redact)
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([k]) => !hidden.has(k)).map(([k, v]) => [k, redact(v)]))
@@ -32,8 +32,8 @@ function scoringContext(context) {
   return redact(filtered)
 }
 const roles = {
-  patient: '根据 current_memories 选择当前图片对应的 lesion 记录，在 image_bindings 中给出 image_id 和准确 reference。只有能确认对应关系时才绑定，多病灶不强行合并；无记录时由程序建立未审核观察记录。features 只用 schema 定义的字段，其他病种的表征放在 phenotype 文字中；只填已知信息，未知不要猜。收集患者事实，保留否认、缺失与冲突。区分患者陈述、照片可见表现和医生确认。只提出一个最有价值的下一问题。不得把病理当成图像所见。',
-  retrieval: '原检索引擎已完成候选初排，现在由你对本次 cases 候选集合逐个给出本轮模型分（0..100），包括 Key2 合并去重的前轮病例与新召回病例；可比性以本轮完整证据为准；relevance 只是本轮的临时模型分。程序会在你输出后乘原有迭代衰退分，再排序选 Top-K；你不要预先考虑或推测衰退系数。只给本次初排提供的病例打分；所有合并候选都要打分；不适用候选给0分，不可遗漏，不能编造或改动来源。比较已检索病例与当前患者的适用性，给出本轮 relevance、支持与不支持的理由。病例原图、区域、经验均为参考。历史区域只能指导语义定位，不能把历史坐标复制到当前图像。不得更改长期效用分。',
+  patient: '根据 current_memories 选择当前图片对应的 lesion 记录，在 image_bindings 中给出 image_id 和准确 reference。只有能确认对应关系时才绑定，多病灶不强行合并；无记录时由程序建立未审核观察记录。patient_experiences 统一整理口腔和诊疗经历：时间、症状变化、习惯、检查、既往诊断、用药和随访；颜色、形态等白斑表征放在 phenotype/features，不混入经历检索字段。history 是旧接口兼容字段。features 只用 schema 定义的字段，其他病种的表征放在 phenotype 文字中；只填已知信息，未知不要猜。收集患者事实，保留否认、缺失与冲突。区分患者陈述、照片可见表现和医生确认。只提出一个最有价值的下一问题。不得把病理当成图像所见。',
+  retrieval: '先看本次 purpose/retrieval_channels：visual 阶段只按患者经历（口腔+诊疗）评价候选相关性，不用白斑外观匹配来评分；diagnosis 阶段才综合白斑描述和患者经历评分。原图与原问题始终随任务提供。原检索引擎已完成候选初排，现在由你对本次 cases 候选集合逐个给出本轮模型分（0..100），包括 Key2 合并去重的前轮病例与新召回病例；可比性以本轮完整证据为准；relevance 只是本轮的临时模型分。程序会在你输出后乘原有迭代衰退分，再排序选 Top-K；你不要预先考虑或推测衰退系数。只给本次初排提供的病例打分；所有合并候选都要打分；不适用候选给0分，不可遗漏，不能编造或改动来源。比较已检索病例与当前患者的适用性，给出本轮 relevance、支持与不支持的理由。病例原图、区域、经验均为参考。历史区域只能指导语义定位，不能把历史坐标复制到当前图像。不得更改长期效用分。',
   visual: '先审视所有当前原图，再比较历史病例图像与当前候选区域。区域 box 为当前图像的0..1000坐标。每项 findings 必须绑定 image_id 与 supporting_views；原图用 image_id、衍生图用 view_id。mask 是遮挡敏感性探查；mask 变化不能单独证明病灶，不能推测被遮住的内容。区域 basis 写明语义依据及相关病例ID。最多提出两个区域。',
   reasoning: '汇总原问题、原图、患者陈述、可追溯视觉观察、病例差异及医生意见，形成鉴别假设、支持/反对证据和下一步。support_ids/against_ids 仅使用视觉 finding.id 或 patient。case_refs 仅引用已提供版本。输出简洁证据摘要，不输出隐含思维链。不能从照片确认病理，也不能将相似病例的治疗直接移用于当前患者。',
   review: '独立审查证据来源、原图一致性、病例可迁移性、信息缺失与过度推断。route=patient 需要患者补充；visual 需要图像复核；retrieval 需要补充病例；reasoning 需要修改综合评估；human 需直接人工判断；approve 表示可供医生审阅，不是医生确诊。required_changes 给出具体修改。',
@@ -196,11 +196,11 @@ export function apply(ctx) {
         }
         await role('patient')
         await call('retrieve', { run_id: runId, key: 'key1' })
-        await role('retrieval', '第一轮：按病史和初始表征筛选参考病例，给出可供当前定位参考的语义线索。')
+        await role('retrieval', '第一轮用于视觉提取：只依据患者经历（口腔经历+诊疗经历）评价参考病例，不将当前白斑描述作为检索或重排依据。')
         await role('visual', '提出当前原图区域；借鉴病例的区域语义，重新定位当前图像。')
         await inspectViews('结合原图、裁剪图与逐区域遮挡图，补充并核查视觉观察。明确掩码敏感性及不确定信息。')
         await call('retrieve', { run_id: runId, key: 'key2' })
-        await role('retrieval', '第二轮：依据完整视觉证据重新比较，包括第二次从整个病例库补充召回的病例。')
+        await role('retrieval', '第二轮用于诊断：综合白斑描述和患者经历，对前轮与新召回的合并候选重新打分。')
         await role('reasoning')
         let audit = await role('review')
         for (let round = 0; round < 2 && ['visual', 'retrieval', 'reasoning'].includes(audit.route); round++) {

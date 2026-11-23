@@ -13,8 +13,8 @@
 <label>字段内容<input id="field-value" placeholder="同步更新时填写"></label>
 <label class="check"><input id="confirmed" type="checkbox" required>我已核对上述输入并确认提交</label><button type="submit">确认提交</button></form>
 <details><summary>已有追问的处理</summary><label>追问记录 ID<input id="question-id"></label><label>操作<select id="question-action"><option value="cancelled">取消追问</option><option value="answered">医生确认已回答</option></select></label><label>回答摘要<input id="question-answer"></label><button id="update-question" type="button">确认更新追问</button></details></section></div>
-<section class="card"><h2>四类记忆</h2><p>所有记录保留。低频只影响同等相关记录的选择；迭代分初始为1，每次确认无帮助扣0.1。</p><div id="memories"></div></section>
-<section class="card"><h2>多智能体病例评估</h2><p>五个角色的结果等待医生核对；病例发布与原有四类个人记忆分开。</p>
+<section class="card"><h2>三类记忆</h2><p>所有记录保留。低频只影响同等相关记录的选择；迭代分初始为1，每次确认无帮助扣0.1。</p><div id="memories"></div></section>
+<section class="card"><h2>多智能体病例评估</h2><p>五个角色的结果等待医生核对；患者经历统一包含口腔与诊疗经历，病例共享仍需授权。</p>
 <button id="medical-load" type="button">读取团队评估</button><p id="medical-status" role="status">尚未读取</p>
 <label>评估轮次<select id="medical-run"></select></label><div id="medical-images"></div><div id="medical-readable"></div><details><summary>证据与版本记录</summary><pre id="medical-results"></pre></details>
 <form id="medical-review-form"><label>医生复核意见<textarea id="medical-note" required></textarea></label><label>诊断或随访确认结果<input id="medical-outcome" required></label><label class="check"><input id="medical-confirmed" type="checkbox" required>已查看原图并确认本轮评估意见</label><button type="submit">保存医生复核</button></form>

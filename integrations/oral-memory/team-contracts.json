@@ -52,6 +52,16 @@
         "maxItems": 100,
         "uniqueItems": true
       },
+      "patient_experiences": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
       "features": {
         "type": "object",
         "properties": {

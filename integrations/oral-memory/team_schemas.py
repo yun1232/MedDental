@@ -22,7 +22,7 @@ HYPOTHESIS = obj({"name": text(), "support_ids": strings(), "against_ids": strin
 OUTPUTS = {
     "patient": obj({"summary": text(), "phenotype": strings(), "history": strings(),
                     "missing": strings(), "next_question": text(empty=True), "red_flags": strings(),
-                    "features": QUERY_FEATURES, "image_bindings": array(obj({"image_id": text(), "reference": REFERENCE}, ("image_id", "reference")), 3)},
+                    "patient_experiences": strings(), "features": QUERY_FEATURES, "image_bindings": array(obj({"image_id": text(), "reference": REFERENCE}, ("image_id", "reference")), 3)},
                    ("summary", "phenotype", "history", "missing", "next_question", "red_flags")),
     "retrieval": obj({"ranking": array(RANK, 72), "transferable_lessons": strings(), "limitations": strings()},
                      ("ranking", "transferable_lessons", "limitations")),

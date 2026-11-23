@@ -1,4 +1,9 @@
-> 原有四类记忆与视觉已融合：原检索初排 → 模型临时分 × 原有迭代分 → Top-K；Key2 合并候选重新打分。图像关联原记录版本，反馈复用原接口。最新规则见 [TEAM.zh.md](TEAM.zh.md)。
+> 当前三类业务记忆：白斑表征、患者经历、医生反馈。视觉阶段仅患者经历；诊断阶段白斑描述＋患者经历。经历统一读写，旧 experience/care 及版本、分数保留兼容。最新机制见 [TEAM.zh.md](TEAM.zh.md)。
+
+
+当前统一入口：`put_patient_experience`、`search(category=patient_experience)`、`get_patient_experience`。`retrieve(purpose=visual)` 只检索患者经历，`purpose=diagnosis` 再加入白斑描述。下文旧表和四路接口属于保留的兼容层，不作为新的业务分类。
+
+## 旧存储与接口兼容说明
 
 ---
 description: "通过现有 DSH MCP 客户端配置与使用患者隔离的口腔白斑记忆的参考说明。"

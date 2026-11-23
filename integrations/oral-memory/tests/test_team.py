@@ -158,7 +158,8 @@ class TeamTests(unittest.TestCase):
     def test_second_key_searches_full_library_and_can_find_new_cases(self):
         _, _, _, published = self.publish_case(['红色区域'])
         other = self.project('patient-b'); run = self.start(other)
-        other.save_output(run, 'patient', patient(['完全不同']))
+        intake = patient(['完全不同']); intake['history'] = ['幼年外伤']
+        other.save_output(run, 'patient', intake)
         self.assertEqual(other.retrieve(run, 'key1')['cases'], [])
         image_id = other.state('visit')['images'][0]['image_id']
         other.save_output(run, 'visual', visual(image_id, '红色区域'))

@@ -64,6 +64,8 @@ def create_tables(db):
 
 def reference(record):
     """Return the category-qualified, version-specific identity of a memory."""
+    if record.get("category") == "patient_experience":
+        return dict(record["storage_reference"])
     return {key: record[key] for key in ("category", "record_id", "version")}
 
 
@@ -71,6 +73,8 @@ class UtilityMixin:
     """Calculate utility from auditable feedback; data is never removed for low use."""
 
     def memory_stats(self, record):
+        if record.get("category") == "patient_experience":
+            record = {**record, **reference(record)}
         row = self.db.execute("""SELECT * FROM memory_stats WHERE patient_id=? AND category=? AND record_id=? AND version=?""",
                               (self.patient_id, record["category"], record["record_id"], record["version"])).fetchone()
         values = dict(row) if row else {"retrieval_count": 0, "exposure_count": 0, "use_count": 0,

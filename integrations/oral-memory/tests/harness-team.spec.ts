@@ -38,7 +38,7 @@ async function fixture(reviewRoutes = ['approve'], imageCapable = true, seedCase
 import sys,base64,io
 from pathlib import Path
 sys.path.insert(0,'integrations/oral-memory/tests')
-from test_memory import lesion,query
+from test_memory import lesion,narrative,query
 from store import MemoryStore
 from team_memory import MedicalProject
 from extensions import reference
@@ -47,6 +47,7 @@ s=MemoryStore(Path(sys.argv[1])/'memory.sqlite3','synthetic-team','doctor')
 p=MedicalProject(s)
 for rid,site,color in [('native-a','颊黏膜',(10,20,30)),('native-b','舌',(30,20,10))]:
  r=s.put('lesion',{'record':lesion(rid,'historical-'+rid,site=site),'expected_version':0})['record']
+ s.put('experience',{'record':narrative('experience','event-'+rid,'historical-'+rid,description='持续三个月' if rid=='native-a' else '三个月',links=[rid]),'expected_version':0})
  b=io.BytesIO();Image.new('RGB',(40,40),color).save(b,'PNG')
  image=p._save_image(base64.b64encode(b.getvalue()).decode(),p._private_dir())
  s.link_visual(reference(r),image,[],[],'old-memory',rid)
@@ -85,7 +86,7 @@ p.close();s.close()
     const imageId = text.match(/CURRENT ORIGINAL image_id=([^;]+)/)![1]
     seen.push({ role, all, text, imageId })
     let value
-    if (role === 'patient') value = { ...(seedPersonal ? { features: { site: '颊黏膜', color: '白色' } } : {}), summary: '患者提供原图', phenotype: ['白色斑块'], history: [], missing: ['病理'], next_question: '有无病理报告？', red_flags: [] }
+    if (role === 'patient') value = { ...(seedPersonal ? { features: { site: '颊黏膜', color: '白色' } } : {}), summary: '患者提供原图', phenotype: ['白色斑块'], history: ['持续三个月'], patient_experiences: ['持续三个月'], missing: ['病理'], next_question: '有无病理报告？', red_flags: [] }
     if (role === 'retrieval') {
       expect(text).not.toContain('"decay_score":')
       expect(text).not.toContain('"final_score":')
@@ -142,7 +143,10 @@ describe('image-aware medical team composition', () => {
     expect(seen[2].all.filter((b: any) => b.type === 'image').length).toBeGreaterThan(1)
     expect(seen[3].text).toContain('DERIVED crop')
     expect(seen[3].text).toContain('DERIVED mask')
+    expect(seen[1].text).toContain('"purpose":"visual"')
+    expect(seen[1].text).toContain('"retrieval_channels":["patient_experience"]')
     expect(seen[5].text).toContain('"key":"key2"')
+    expect(seen[5].text).toContain('"retrieval_channels":["lesion","patient_experience"]')
     expect(seen[0].text).toContain('"revision":1')
     expect(result(events)).toContain('awaiting_doctor')
     const { bridge } = await import('../harness-team.mjs')

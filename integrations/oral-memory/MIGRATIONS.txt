@@ -1,3 +1,14 @@
+2026-11-23：统一患者经历与阶段检索（非破坏性兼容升级）
+- 三类业务：lesion / patient_experience / doctor。
+- patient_experience_memory 是 experience_memory 与 care_memory 的 UNION ALL 视图；不复制、删除或改写旧记录。
+- 统一读写接口将 event_kind 子类型映射到旧存储，返回 storage_reference，旧 category/record_id/version 的反馈与迭代分继续有效。
+- SQL视图保留旧两类同ID的事件；版本历史与迭代分不会合并错位或重置。
+- MemoryStore.retrieve purpose=visual 只按患者经历；purpose=diagnosis 按白斑描述＋患者经历；默认 legacy 兼容旧客户端。
+- 医生memory_groups是三类业务视图；memories保留旧格式兼容，页面使用memory_groups。
+- 升级前停止旧进程并备份数据库与图片；重启后自动创建视图，新旧事件即时反映在统一视图中。
+
+--- 历史迁移记录 ---
+
 Oral memory SQLite schema migration
 
 Predecessor: application_id=0x4F4C4B31, user_version=1

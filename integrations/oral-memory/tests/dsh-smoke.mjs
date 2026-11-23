@@ -58,6 +58,26 @@ try {
   assert.equal(state.isError, false)
   assert.equal(state.value.structuredContent.revision, 1)
   assert.equal(state.value.structuredContent.state.fields.symptom_duration.status, 'known')
+  const unified = await executeToolFixture(ctx, {
+    name: 'mcp__oral_memory__put_patient_experience', arguments: { expected_version: 0, record: {
+      record_id: 'unified-care', encounter_id: 'smoke-visit', event_time: 'unknown', source_ref: 'synthetic/smoke',
+      source: 'patient', review_status: 'unreviewed', lesion_ids: [], event_kind: 'care', care_type: 'examination', description: '复诊检查', outcome: '',
+    } }, callId: 'unified-write', signal: new AbortController().signal,
+  })
+  assert.equal(unified.isError, false)
+  assert.equal(unified.value.structuredContent.record.category, 'patient_experience')
+  const unifiedRead = await executeToolFixture(ctx, { name: 'mcp__oral_memory__get_patient_experience', arguments: {
+    reference: unified.value.structuredContent.record.storage_reference, include_versions: true,
+  }, callId: 'unified-read', signal: new AbortController().signal })
+  assert.equal(unifiedRead.isError, false)
+  assert.equal(unifiedRead.value.structuredContent.record.description, '复诊检查')
+  const beforeVisual = await executeToolFixture(ctx, { name: 'mcp__oral_memory__retrieve', arguments: {
+    purpose: 'visual', patient_experience_query: '检查', lesion_query: { color: '白色' },
+    care_query: '', experience_query: '', doctor_query: '', top_k: 5,
+  }, callId: 'history-only', signal: new AbortController().signal })
+  assert.equal(beforeVisual.isError, false)
+  assert.deepEqual(beforeVisual.value.structuredContent.retrieval_channels, ['patient_experience'])
+  assert.equal(beforeVisual.value.structuredContent.candidates[0].phenotype_score, 0)
   await memory.dispose()
   assert.ok(!renderPrompt(await ctx.systemPrompt.assemble()).includes('优先级1=白斑表征相关性'))
   process.stdout.write('DSH MCP discovery, prompt, memory, patient turn, case state and unload: passed\n')

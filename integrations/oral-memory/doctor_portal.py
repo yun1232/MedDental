@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from schemas import MemoryError
-from store import MemoryStore, settings_from_env
+from store import MemoryStore, settings_from_env, BUSINESS_CATEGORIES
 from workflow import PatientCommunicationAgent
 
 MAX_BODY = 512_000
@@ -72,6 +72,7 @@ class DoctorApplication:
                 encounter = parameters.get("encounter_id", [""])[0]
                 result = {"patient_id": self.patient_id, **agent.case_state({"encounter_id": encounter}),
                           "memories": {category: store.records(category) for category in ("lesion", "experience", "care", "doctor")}}
+                result["memory_groups"] = {category: store.records(category) for category in BUSINESS_CATEGORIES}
                 result["recent_retrievals"] = [{"retrieval_id": row["retrieval_id"], "refs": json.loads(row["refs"])}
                     for row in store.db.execute("SELECT retrieval_id,refs FROM delivery_packets WHERE patient_id=? ORDER BY rowid DESC LIMIT 100", (self.patient_id,))]
             elif method == "POST" and parts.path in ("/api/submit", "/api/feedback", "/api/frequency"):

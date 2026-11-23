@@ -26,6 +26,8 @@ def call(store, name, arguments):
     validate(arguments, declarations[name]["inputSchema"])
     if name.startswith("put_"):
         return store.put(name.removeprefix("put_"), arguments)
+    if name == "get_patient_experience":
+        return store._deliver(store.get_patient_experience(arguments))
     if name == "retrieve":
         return store.retrieve(arguments)
     if name == "search":

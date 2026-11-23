@@ -59,7 +59,7 @@
     for (const c of cases.values()) {
       const row = document.createElement('div'), label = document.createElement('p');
       const reranked = [...(run.rerankings || [])].reverse().flatMap(r => r.ranking).find(r => r.case_id === c.case_id && r.version === c.version);
-      label.textContent = c.case_id + ' · v' + c.version + ' · 初排表征相关性 ' + c.phenotype_score.toFixed(2) + ' · 模型重排分 ' + (reranked ? reranked.relevance : '未推荐') + ' · 迭代分 ' + (Number.isFinite(reranked?.decay_score ?? c.decay_score) ? (reranked?.decay_score ?? c.decay_score).toFixed(2) : '旧轮次未记录') + ' · 最终分 ' + (Number.isFinite(reranked?.final_score) ? reranked.final_score.toFixed(2) : '未打分');
+      label.textContent = c.case_id + ' · v' + c.version + ' · 患者经历匹配 ' + (c.patient_experience_score ?? c.history_score ?? 0).toFixed(2) + ' · 白斑匹配 ' + (c.retrieval_channels?.includes('lesion') ? c.phenotype_score.toFixed(2) : '未用于视觉初排') + ' · 模型重排分 ' + (reranked ? reranked.relevance : '未推荐') + ' · 迭代分 ' + (Number.isFinite(reranked?.decay_score ?? c.decay_score) ? (reranked?.decay_score ?? c.decay_score).toFixed(2) : '旧轮次未记录') + ' · 最终分 ' + (Number.isFinite(reranked?.final_score) ? reranked.final_score.toFixed(2) : '未打分');
       row.append(label);
       for (const [kind, text] of [['helpful', '医生确认本例有参考价值'], ['not_helpful', '医生确认本例无参考价值']]) {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
