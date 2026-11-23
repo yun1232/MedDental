@@ -11,6 +11,7 @@ from pathlib import Path
 from retrieval import hierarchical, rank_text, render_lesion
 from schemas import GET, PHENOTYPE, RECORDS, RETRIEVE, SEARCH, WRITE_SCHEMAS, MemoryError, validate
 from extensions import UtilityMixin, create_tables
+from visual_memory import VisualMemoryMixin
 
 APPLICATION_ID = 0x4F4C4B31
 SCHEMA_VERSION = 2
@@ -39,6 +40,8 @@ def settings_from_env(env):
             "exploration_rate": float(env.get("ORAL_MEMORY_EXPLORATION_RATE", "0.1")),
             "utility_floor": float(env.get("ORAL_MEMORY_UTILITY_FLOOR", "0.05")),
             "unused_penalty": float(env.get("ORAL_MEMORY_UNUSED_PENALTY", "0.1")),
+            "decay_step": float(env.get("ORAL_MEMORY_DECAY_STEP", "0.1")),
+            "decay_floor": float(env.get("ORAL_MEMORY_DECAY_FLOOR", "0")),
             "max_question_attempts": int(env.get("ORAL_MEMORY_MAX_QUESTION_ATTEMPTS", "2")),
         }
         if not 0 < result["min_phenotype_score"] <= 1:
@@ -50,6 +53,8 @@ def settings_from_env(env):
         for field in ("low_frequency_threshold", "low_frequency_multiplier", "exploration_rate", "utility_floor", "unused_penalty"):
             if not math.isfinite(result[field]) or not 0 < result[field] <= 1:
                 raise ValueError(f"{field} must be finite and in (0,1]")
+        if not math.isfinite(result["decay_step"]) or not 0 < result["decay_step"] <= 1 or not math.isfinite(result["decay_floor"]) or not 0 <= result["decay_floor"] <= 1:
+            raise ValueError("invalid decay step or floor")
         if not 1 <= result["low_frequency_min_exposures"] <= 100000 or not 1 <= result["max_question_attempts"] <= 10:
             raise ValueError("exposure or question-attempt limit out of bounds")
         return result
@@ -57,7 +62,7 @@ def settings_from_env(env):
         raise MemoryError("invalid_config", f"Invalid oral-memory configuration: {error}") from error
 
 
-class MemoryStore(UtilityMixin):
+class MemoryStore(VisualMemoryMixin, UtilityMixin):
     """Own a database connection; never accept patient or actor identity from tools."""
 
     def __init__(self, path, patient_id, role="patient", settings=None):
@@ -167,6 +172,10 @@ class MemoryStore(UtilityMixin):
                 "version": row["version"], "updated_at": row["updated_at"],
                 "updated_order": row["updated_order"], "search_text": row["search_text"]}
         record["stats"] = self.memory_stats(record)
+        record["visual"] = self.visual_context(record)
+        if category == "lesion" and (record["visual"] or record.get("visual_description")):
+            from retrieval import descriptor_text
+            record["search_text"] += " VISUAL/1 " + descriptor_text(record)
         return record
 
     def put(self, category, arguments):
@@ -253,12 +262,23 @@ class MemoryStore(UtilityMixin):
         return self._deliver({"category": arguments["category"], "matches": rank_text(records, arguments["query"], arguments["top_k"], self.settings),
                 "mode": "relevance" if arguments["query"].strip() else "recent_writes"})
 
-    def retrieve(self, arguments):
+    def retrieve(self, arguments, *, sources=(), initial_only=False, consultation_id=None):
         """Run an independently scored, phenotype-first two-level retrieval."""
         validate(arguments, RETRIEVE)
         with self.transaction():
             records = {category: self.records(category) for category in CATEGORIES}
-            result = hierarchical(records, arguments, self.settings)
+            for source in sources:
+                for category in CATEGORIES:
+                    records[category].extend(source.records(category))
+            settings = {**self.settings, "initial_only": initial_only}
+            result = hierarchical(records, arguments, settings)
+            if initial_only:
+                result["ranking"] = ["phenotype_score DESC", "care_score DESC", "stable initial ties; iteration score applied only after model scoring"]
             from workflow import PatientCommunicationAgent
             result["required_context"] = PatientCommunicationAgent(self).required_context(arguments.get("encounter_id"))
-            return self._deliver(result)
+            delivered = self._deliver(result, consultation_id=consultation_id)
+            delivered["source_packets"] = [{"scope": "patient", "retrieval_id": delivered["retrieval_id"], "delivered_refs": delivered["delivered_refs"]}]
+            for source in sources:
+                packet = source._deliver(result, consultation_id=consultation_id)
+                delivered["source_packets"].append({"scope": "library", "retrieval_id": packet["retrieval_id"], "delivered_refs": packet["delivered_refs"]})
+            return delivered

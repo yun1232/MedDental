@@ -39,14 +39,20 @@ def text_score(query, document):
 def descriptor_text(record):
     """Render image-derived appearance only; pathology does not affect phenotype recall."""
     features = record["features"]
-    return " ".join(" ".join(value) if isinstance(value, list) else value
+    base = " ".join(" ".join(value) if isinstance(value, list) else value
                     for value in features.values())
+    grounded = [finding["description"] + " " + " ".join(finding["tags"])
+                for link in record.get("visual", []) if not link.get("stale")
+                for finding in link["findings"] if finding["certainty"] == "clear"]
+    return " ".join([base, record.get("visual_description", ""), *grounded])
 
 
 def render_lesion(record):
     """Render escaped, deterministic OLK/1 text for storage and model context."""
     fields = {"lesion_id": record["lesion_id"], **record["features"],
               "size": record["size_description"], "pathology": record["pathology"]}
+    if record.get("visual_description"):
+        fields["visual_description"] = record["visual_description"]
     return "OLK/1;" + ";".join(key + "=" + json.dumps(value, ensure_ascii=False, sort_keys=True)
                                for key, value in fields.items())
 
@@ -82,6 +88,8 @@ def phenotype_score(query, record, weights):
 
 def associated(record, lesion):
     """Explicit lesion links span visits; unlinked records apply only to their encounter."""
+    if record.get("patient_id") != lesion.get("patient_id"):
+        return False
     links = record.get("lesion_ids", [])
     return lesion["lesion_id"] in links if links else record["encounter_id"] == lesion["encounter_id"]
 

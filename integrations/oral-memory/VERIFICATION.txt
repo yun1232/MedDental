@@ -1,3 +1,29 @@
+MedDental 原记忆与视觉融合验证，2026-11-23
+基线：952b5318e4af46b420dbfd459485daec65e20a84。
+
+本轮实现：
+- 图像与视觉证据挂接原 category/record_id/version；旧 get/search/retrieve 能读取。
+- Key1、Key2 共用原 MemoryStore/hierarchical 初排；候选交给模型逐个临时打分。
+- 迭代分初始1，无帮助反馈每次扣0.1；模型分不写回长期分。最终分=M×D，仅乘一次，取 Top-K。
+- Key2 合并旧候选与新召回病例，去重后全部重新打分；保留每轮独立快照。
+- 原有患者历史可直接参与，跨患者授权快照只通过适配层接入相同规则；不取消身份过滤。
+- 团队医生意见写回旧 doctor 记忆；反馈统一记入原 memory_stats/memory_feedback。
+- 原数据库和上一版共享库升级保留记录、图片、回执及旧反馈，不重复扣分。
+
+通过：
+- 69 项 Python 测试，包括12项融合/迁移/迭代分/合并重排回归。
+- 6 项真实 Harness 团队测试：真实 Loader、预设、AgentLoop、spawn、附件与存储；只模拟外部模型。
+  原私人病例直接召回；模型看不到衰退系数；初排第一的病例可在 M×D 后被另一病例超过；下游按最终 Top-K 取图。
+- pnpm build：7/7 阶段通过。
+- pnpm test:oral：原有启动、MCP、医生 DOM/HTTP、患者 persona 与上述业务/团队测试。
+- pnpm test:medical-web：真实患者 Web 启动、鉴权与页面。
+- git diff --check、语法和更新后的源码哈希清单。
+
+本轮 pnpm test:framework：309通过、2项 MCP HTTP 探测失败，与既有 credentials/negotiation-lifecycle 两项问题一致。未跳过或改写原测试。
+使用合成病例与模拟模型，未评估真实模型的医学诊断效果。未提交数据库、患者图片或凭据。
+
+--- 以下为历史验证记录 ---
+
 MedDental 五角色多模态医疗框架验证，2026-11-23
 基线：GitHub main fedf47e35a4bf73b404c479ca70492192ea96879。
 本次不训练模型，新增业务位于 integrations/oral-memory；未更改核心 AgentLoop、vendor 或 native 实现。

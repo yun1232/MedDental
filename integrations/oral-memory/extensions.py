@@ -46,6 +46,20 @@ def create_tables(db):
     ]
     for statement in statements:
         db.execute(statement)
+    columns = {row[1] for row in db.execute("PRAGMA table_info(memory_stats)")}
+    if "decay_score" not in columns:
+        db.execute("ALTER TABLE memory_stats ADD COLUMN decay_score REAL NOT NULL DEFAULT 1")
+        # Recover the explicit 1 -> .9 -> .8 iteration score from immutable old verdicts once.
+        db.execute("""UPDATE memory_stats SET decay_score=MAX(0,ROUND(1-0.1*(
+            SELECT COUNT(*) FROM memory_feedback f WHERE f.patient_id=memory_stats.patient_id
+            AND f.category=memory_stats.category AND f.record_id=memory_stats.record_id
+            AND f.version=memory_stats.version AND f.kind IN ('not_helpful','unused_opportunity')),10))""")
+    packet_columns = {row[1] for row in db.execute("PRAGMA table_info(delivery_packets)")}
+    if "consultation_id" not in packet_columns:
+        db.execute("ALTER TABLE delivery_packets ADD COLUMN consultation_id TEXT")
+    db.execute("CREATE INDEX IF NOT EXISTS delivery_by_consultation ON delivery_packets(patient_id,consultation_id)")
+    from visual_memory import create_visual_tables
+    create_visual_tables(db)
 
 
 def reference(record):
@@ -60,7 +74,7 @@ class UtilityMixin:
         row = self.db.execute("""SELECT * FROM memory_stats WHERE patient_id=? AND category=? AND record_id=? AND version=?""",
                               (self.patient_id, record["category"], record["record_id"], record["version"])).fetchone()
         values = dict(row) if row else {"retrieval_count": 0, "exposure_count": 0, "use_count": 0,
-            "positive": 0.0, "negative": 0.0, "last_used_at": None, "protected": 0, "frequency_override": None}
+            "positive": 0.0, "negative": 0.0, "decay_score": 1.0, "last_used_at": None, "protected": 0, "frequency_override": None}
         utility = (1 + values["positive"]) / (2 + values["positive"] + values["negative"])
         protected = bool(values["protected"]) or (record["category"] == "doctor" and (
             record.get("question_status") == "open" or record.get("note_type") == "final_diagnosis"))
@@ -69,17 +83,17 @@ class UtilityMixin:
         if protected:
             frequency = "normal"
         return {key: values[key] for key in ("retrieval_count", "exposure_count", "use_count", "positive", "negative", "last_used_at")} | {
-            "utility_score": utility, "frequency": frequency, "protected": protected}
+            "utility_score": utility, "decay_score": values["decay_score"], "frequency": frequency, "protected": protected}
 
     def _ensure_stats(self, ref):
         self.db.execute("INSERT OR IGNORE INTO memory_stats(patient_id,category,record_id,version) VALUES (?,?,?,?)",
                         (self.patient_id, ref["category"], ref["record_id"], ref["version"]))
 
-    def _deliver(self, result):
+    def _deliver(self, result, *, consultation_id=None):
         refs = {}
         def collect(value):
             if isinstance(value, dict):
-                if all(key in value for key in ("category", "record_id", "version", "search_text")):
+                if all(key in value for key in ("category", "record_id", "version", "search_text")) and value.get("patient_id", self.patient_id) == self.patient_id:
                     ref = reference(value)
                     refs[(ref["category"], ref["record_id"], ref["version"])] = ref
                 for child in value.values():
@@ -90,8 +104,8 @@ class UtilityMixin:
         collect(result)
         packet_id = str(uuid.uuid4())
         with self.transaction():
-            self.db.execute("INSERT INTO delivery_packets VALUES (?,?,?,?)", (self.patient_id, packet_id,
-                json.dumps(list(refs.values())), datetime.now(timezone.utc).isoformat()))
+            self.db.execute("INSERT INTO delivery_packets(patient_id,retrieval_id,refs,created_at,consultation_id) VALUES (?,?,?,?,?)", (self.patient_id, packet_id,
+                json.dumps(list(refs.values())), datetime.now(timezone.utc).isoformat(), consultation_id))
             for ref in refs.values():
                 self._ensure_stats(ref)
                 self.db.execute("""UPDATE memory_stats SET retrieval_count=retrieval_count+1, exposure_count=exposure_count+1
@@ -106,7 +120,7 @@ class UtilityMixin:
             raise MemoryError("forbidden", "Only doctor callers may evaluate usefulness or unused opportunities")
         ref = arguments["reference"]
         with self.transaction():
-            row = self.db.execute("SELECT refs FROM delivery_packets WHERE patient_id=? AND retrieval_id=?",
+            row = self.db.execute("SELECT refs,consultation_id FROM delivery_packets WHERE patient_id=? AND retrieval_id=?",
                                   (self.patient_id, arguments["retrieval_id"])).fetchone()
             if row is None or ref not in json.loads(row["refs"]):
                 raise MemoryError("not_exposed", "Reference was not delivered in this patient's retrieval packet")
@@ -118,6 +132,16 @@ class UtilityMixin:
                 if expected != actual:
                     raise MemoryError("event_conflict", "Feedback event ID was reused with different data")
                 return {"idempotent": True}
+            if arguments["kind"] != "used" and row["consultation_id"]:
+                prior = self.db.execute("""SELECT f.kind FROM memory_feedback f JOIN delivery_packets p
+                    ON p.patient_id=f.patient_id AND p.retrieval_id=f.retrieval_id
+                    WHERE p.patient_id=? AND p.consultation_id=? AND f.category=? AND f.record_id=?
+                    AND f.version=? AND f.kind!='used' LIMIT 1""", (self.patient_id, row["consultation_id"],
+                    ref["category"], ref["record_id"], ref["version"])).fetchone()
+                if prior:
+                    if prior["kind"] != arguments["kind"]:
+                        raise MemoryError("feedback_conflict", "This consultation already has a verdict for this memory version")
+                    return {"idempotent": True}
             duplicate = self.db.execute("""SELECT 1 FROM memory_feedback WHERE patient_id=? AND retrieval_id=?
                 AND category=? AND record_id=? AND version=? AND kind=?""", (self.patient_id, arguments["retrieval_id"],
                 ref["category"], ref["record_id"], ref["version"], arguments["kind"])).fetchone()
@@ -140,6 +164,10 @@ class UtilityMixin:
                 last_used_at=CASE WHEN ?=1 THEN ? ELSE last_used_at END
                 WHERE patient_id=? AND category=? AND record_id=? AND version=?""",
                 (positive, negative, used, used, stamp, self.patient_id, ref["category"], ref["record_id"], ref["version"]))
+            if arguments["kind"] in ("not_helpful", "unused_opportunity"):
+                self.db.execute("""UPDATE memory_stats SET decay_score=MAX(?,ROUND(decay_score-?,10))
+                    WHERE patient_id=? AND category=? AND record_id=? AND version=?""",
+                    (self.settings["decay_floor"], self.settings["decay_step"], self.patient_id, ref["category"], ref["record_id"], ref["version"]))
         return {"idempotent": False, "feedback": arguments["kind"]}
 
     def set_frequency(self, arguments):
@@ -165,6 +193,9 @@ def select_ties(items, limit, keys, record_key, settings, rng=None):
     """Sample only within exactly equal relevance groups, preserving primary priorities."""
     rng = rng or random.SystemRandom()
     ordered = sorted(items, key=lambda item: tuple(-item[key] for key in keys))
+    if settings.get("initial_only"):
+        # Global phenotype/care initial order; apply the iteration score ONCE after model scoring.
+        return ordered[:limit]
     result = []
     index = 0
     while index < len(ordered) and len(result) < limit:
@@ -181,7 +212,7 @@ def select_ties(items, limit, keys, record_key, settings, rng=None):
                 weights = []
                 for item in group:
                     stats = item[record_key].get("stats", {})
-                    weight = stats.get("utility_score", 0.5) + settings["utility_floor"]
+                    weight = stats.get("decay_score", stats.get("utility_score", 0.5)) + settings["utility_floor"]
                     if stats.get("frequency") == "low_frequency":
                         weight *= settings["low_frequency_multiplier"]
                     weights.append(weight)

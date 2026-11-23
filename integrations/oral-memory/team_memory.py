@@ -11,12 +11,14 @@ import json
 import math
 import os
 from pathlib import Path
-import re
 import sqlite3
 import time
 import uuid
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
-from schemas import MemoryError, validate, obj, text, strings
+from schemas import MemoryError, validate, obj, text, strings, PHENOTYPE
+from extensions import reference
+from retrieval import descriptor_text, known
+from case_library import CaseLibrary, record_id as published_record_id
 from team_schemas import OUTPUTS, check_output, REGION, array
 from workflow import PatientCommunicationAgent
 
@@ -37,19 +39,6 @@ def fail(code, message):
     raise MemoryError(code, message)
 
 
-def terms(value):
-    """Deterministic multilingual baseline, replaceable by a frozen embedding index."""
-    s = " ".join(value) if isinstance(value, list) else str(value)
-    words = re.findall(r"[a-z0-9]+|[\u3400-\u9fff]+", s.lower())
-    return {piece for word in words for piece in
-            ([word[i:i + 2] for i in range(len(word) - 1)] if re.fullmatch(r"[\u3400-\u9fff]+", word) and len(word) > 1 else [word])}
-
-
-def similarity(a, b):
-    left, right = terms(a), terms(b)
-    return len(left & right) / math.sqrt(len(left) * len(right)) if left and right else 0.0
-
-
 class MedicalProject:
     def __init__(self, store, shared_path=None, asset_root=None, profile_path=None, domain=None):
         self.store, self.db = store, store.db
@@ -65,6 +54,13 @@ class MedicalProject:
         if self.domain not in profiles:
             fail("unknown_domain", "Select a configured disease profile")
         self.profile = profiles[self.domain]
+        try:
+            self.top_k = int(os.environ.get("MEDICAL_TOP_K", "5"))
+            self.candidate_limit = int(os.environ.get("MEDICAL_CANDIDATE_LIMIT", "12"))
+            if not 1 <= self.top_k <= 12 or not self.top_k <= self.candidate_limit <= 12:
+                raise ValueError()
+        except ValueError:
+            fail("invalid_config", "Use 1 <= MEDICAL_TOP_K <= MEDICAL_CANDIDATE_LIMIT <= 12")
         self.db.executescript('''
           CREATE TABLE IF NOT EXISTS medical_cases (
             patient TEXT NOT NULL, encounter TEXT NOT NULL, revision INTEGER NOT NULL,
@@ -76,41 +72,19 @@ class MedicalProject:
           CREATE TABLE IF NOT EXISTS medical_session_bindings (
             patient TEXT NOT NULL, session TEXT NOT NULL, encounter TEXT NOT NULL,
             PRIMARY KEY(patient,session));
+          CREATE TABLE IF NOT EXISTS medical_case_feedback (
+            patient TEXT NOT NULL, run TEXT NOT NULL, scope TEXT NOT NULL,
+            category TEXT NOT NULL, record_id TEXT NOT NULL, version INTEGER NOT NULL,
+            payload TEXT NOT NULL, PRIMARY KEY(patient,run,scope,category,record_id,version));
           CREATE TABLE IF NOT EXISTS medical_events (
             patient TEXT NOT NULL, event TEXT NOT NULL, hash TEXT NOT NULL,
             response TEXT NOT NULL, PRIMARY KEY(patient,event));
         ''')
-        self.shared_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.shared = sqlite3.connect(self.shared_path, timeout=5, isolation_level=None)
-        self.shared.row_factory = sqlite3.Row
-        application = self.shared.execute("PRAGMA application_id").fetchone()[0]
-        version = self.shared.execute("PRAGMA user_version").fetchone()[0]
-        tables = self.shared.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
-        if (application, version) not in ((0, 0), (0x4D444331, 1)) or (application == 0 and tables):
-            self.shared.close()
-            fail("wrong_database", "Shared case library must be a new file or a MedDental case library")
-        self.shared.execute("PRAGMA journal_mode=WAL")
-        self.shared.execute("PRAGMA synchronous=FULL")
-        self.shared.executescript('''
-          BEGIN IMMEDIATE;
-          CREATE TABLE IF NOT EXISTS cases (
-            id TEXT PRIMARY KEY, version INTEGER NOT NULL, domain TEXT NOT NULL,
-            payload TEXT NOT NULL, helpful INTEGER NOT NULL DEFAULT 0,
-            unhelpful INTEGER NOT NULL DEFAULT 0, exposures INTEGER NOT NULL DEFAULT 0);
-          CREATE TABLE IF NOT EXISTS case_versions (
-            id TEXT NOT NULL, version INTEGER NOT NULL, payload TEXT NOT NULL,
-            PRIMARY KEY(id,version));
-          CREATE TABLE IF NOT EXISTS deliveries (
-            run TEXT NOT NULL, id TEXT NOT NULL, version INTEGER NOT NULL,
-            feedback TEXT, PRIMARY KEY(run,id,version));
-          PRAGMA application_id=1296319281;
-          PRAGMA user_version=1;
-          COMMIT;
-        ''')
-        self.shared_path.chmod(0o600)
+        self.library = CaseLibrary(self.shared_path, self.domain, self.role, self.store.settings)
+        self.shared = self.library.db  # compatibility: published headers remain in this database
 
     def close(self):
-        self.shared.close()
+        self.library.close()
 
     def doctor(self):
         if self.role != "doctor":
@@ -139,7 +113,14 @@ class MedicalProject:
         run = json.loads(row["payload"])
         if current and (self.state(row["encounter"])["revision"] != row["revision"] or self._legacy_revision(row["encounter"]) != run["legacy_revision"]):
             fail("stale_revision", "Patient or doctor information changed; start a fresh consultation")
+        if current and "memory_epoch" in run and run["memory_epoch"] != self._memory_epoch():
+            fail("stale_revision", "Original patient memory changed; start a fresh consultation")
         return run
+
+    def _memory_epoch(self):
+        clinical = self.db.execute("SELECT COALESCE(MAX(seq),0) FROM revisions WHERE patient_id=?", (self.patient,)).fetchone()[0]
+        visual = self.db.execute("SELECT COALESCE(MAX(seq),0) FROM memory_visual_revisions WHERE patient_id=?", (self.patient,)).fetchone()[0]
+        return [clinical, visual]
 
     def _write_run(self, run):
         self.db.execute("UPDATE medical_runs SET payload=?,status=? WHERE id=? AND patient=?", (packed(run), run["status"], run["run_id"], self.patient))
@@ -232,7 +213,7 @@ class MedicalProject:
                           "messages": history, "images": list(originals.values()), "revision": revision})
             self.db.execute("INSERT OR REPLACE INTO medical_cases VALUES(?,?,?,?)", (self.patient, encounter_id, revision, packed(state)))
             run = {"run_id": "run-" + uuid.uuid4().hex, "encounter_id": encounter_id,
-                   "revision": revision, "legacy_revision": state["legacy_revision"], "domain": self.domain, "status": "running", "outputs": [], "retrievals": [], "views": [], "doctor_review": None, "input": dict(state)}
+                   "revision": revision, "legacy_revision": state["legacy_revision"], "domain": self.domain, "status": "running", "outputs": [], "retrievals": [], "views": [], "doctor_review": None, "input": dict(state), "memory_epoch": self._memory_epoch(), "memory_bindings": []}
             self.db.execute("INSERT INTO medical_runs VALUES(?,?,?,?,?,?)", (run["run_id"], self.patient, encounter_id, revision, run["status"], packed(run)))
             response = {"run_id": run["run_id"], "revision": revision}
             self.db.execute("INSERT INTO medical_events VALUES(?,?,?,?)", (self.patient, event_id, request_hash, packed(response)))
@@ -246,6 +227,7 @@ class MedicalProject:
         run = self.run(run_id)
         return {"case": self.state(run["encounter_id"]), "run": run,
                 "longitudinal": self.inquiry.case_state({"encounter_id": run["encounter_id"]}),
+                "current_memories": {category: [r for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]] for category in ("lesion", "experience", "care", "doctor")},
                 "doctor_notes": [r for r in self.store.records("doctor") if r["encounter_id"] == run["encounter_id"]][-10:],
                 "prior_reviews": [{"encounter_id": r["encounter"], "input_revision": r["revision"],
                                    "doctor_review": json.loads(r["payload"])["doctor_review"]}
@@ -263,7 +245,22 @@ class MedicalProject:
             if run["status"] != "running" or len(run["outputs"]) >= 24:
                 fail("run_closed", "Consultation ended or step budget exhausted")
             self._check_evidence(run, role, value)
+            if role == "patient":
+                self._bind_originals(run, value)
             run["outputs"].append({"role": role, "step": len(run["outputs"]) + 1, "value": value})
+            if role == "retrieval":
+                initial = run["retrievals"][-1]
+                by_id = {(c["case_id"], c["version"]): c for c in initial["cases"]}
+                ranking = [{**r, "model_score": r["relevance"], "decay_score": by_id[(r["case_id"], r["version"])]["decay_score"],
+                            "final_score": round(r["relevance"] * by_id[(r["case_id"], r["version"])]["decay_score"], 10)} for r in value["ranking"]]
+                ranking.sort(key=lambda r: (-r["final_score"], -r["model_score"], r["case_id"], r["version"]))
+                scored = {(r["case_id"], r["version"]) for r in ranking}
+                selected = [r for r in ranking if r["final_score"] > 0][:self.top_k]
+                run.setdefault("rerankings", []).append({"stage": "model_reranking", "retrieval_id": initial["retrieval_id"],
+                    "key": initial["key"], "ranking": ranking, "selected": selected, "top_k": self.top_k,
+                    "score_rule": "final_score = temporary_model_score * iteration_decay_score",
+                    "unscored": [{"case_id": c["case_id"], "version": c["version"]} for c in initial["cases"] if (c["case_id"], c["version"]) not in scored]})
+            run["memory_epoch"] = self._memory_epoch()
             self._write_run(run)
             self.db.commit()
         except BaseException:
@@ -291,9 +288,15 @@ class MedicalProject:
                         fail("invalid_evidence", "View is unrelated to the finding image")
                 if finding["certainty"] == "clear" and not any(v == finding["image_id"] or views.get(v, {}).get("kind") == "crop" for v in finding["supporting_views"]):
                     fail("invalid_evidence", "A clear finding requires original/crop support; mask alone is insufficient")
+        if role == "retrieval":
+            delivered = {(c["case_id"], c["version"]) for c in run["retrievals"][-1]["cases"]} if run["retrievals"] else set()
+        if role == "reasoning" and run.get("rerankings"):
+            delivered = {(r["case_id"], r["version"]) for r in run["rerankings"][-1]["selected"]}
         if role in ("retrieval", "reasoning"):
             refs = value["ranking"] if role == "retrieval" else value["case_refs"]
             pairs = [(x["case_id"], x["version"]) for x in refs]
+            if role == "retrieval" and set(pairs) != delivered:
+                fail("incomplete_reranking", "Every current candidate needs a fresh temporary model score, including zero for unsuitable cases")
             if len(set(pairs)) != len(pairs) or any(pair not in delivered for pair in pairs):
                 fail("invalid_reference", "Only distinct delivered case versions may be cited")
         if role == "reasoning":
@@ -305,6 +308,120 @@ class MedicalProject:
     def latest(self, run, role):
         return next((x["value"] for x in reversed(run["outputs"]) if x["role"] == role), None)
 
+    def _bind_originals(self, run, patient):
+        """Attach images to exact original memory versions, never replace clinical facts."""
+        state = self.state(run["encounter_id"])
+        current = [r for r in self.store.records("lesion") if r["encounter_id"] == run["encounter_id"]]
+        requested = {b["image_id"]: b["reference"] for b in patient.get("image_bindings", [])}
+        if len(requested) != len(patient.get("image_bindings", [])) or set(requested) - {i["image_id"] for i in state["images"]}:
+            fail("invalid_binding", "Each current image may have one explicit lesion binding")
+        saved = {b["image_id"]: b["reference"] for b in state.get("memory_bindings", [])}
+        bindings = []
+        for image in state["images"]:
+            ref = requested.get(image["image_id"]) or saved.get(image["image_id"])
+            if ref:
+                if ref["category"] != "lesion":
+                    fail("invalid_binding", "Original images must reference a lesion observation")
+                record = self.store.get({"category": "lesion", "record_id": ref["record_id"], "include_versions": False})["record"]
+                if record["encounter_id"] != run["encounter_id"] or (image["image_id"] in requested and record["version"] != ref["version"]):
+                    fail("invalid_binding", "Image binding requires a current observation from this encounter")
+                ref = reference(record)
+            elif len(current) == 1 and len(state["images"]) == 1:
+                ref = reference(current[0])
+            else:
+                rid = "visual-observation-" + digest([run["encounter_id"], image["image_id"]])[:40]
+                existing = next((r for r in current if r["record_id"] == rid), None)
+                if existing:
+                    ref = reference(existing)
+                else:
+                    # This is an unreviewed observation identity, not a confirmed diagnosis or a lesion count.
+                    features = {key: [] if key == "tooth_positions" else "unknown" for key in PHENOTYPE}
+                    if len(state["images"]) == 1:
+                        features.update({k: v for k, v in patient.get("features", {}).items() if k in PHENOTYPE})
+                    record = {"record_id": rid, "encounter_id": run["encounter_id"], "event_time": "unknown",
+                              "source_ref": "medical-input:" + run["run_id"], "source": "model", "review_status": "unreviewed",
+                              "lesion_id": "unreviewed:" + rid, "features": features, "size_description": "unknown",
+                              "pathology": {"status": "unknown", "result": "", "source_ref": ""}}
+                    created = self.store.put("lesion", {"record": record, "expected_version": 0})["record"]
+                    ref = reference(created)
+            linked = self.store.get({"category": "lesion", "record_id": ref["record_id"], "include_versions": False})["record"]["visual"]
+            if not any(v["image"]["image_id"] == image["image_id"] and not v["stale"] for v in linked):
+                self.store.link_visual(ref, image, [], [], run["run_id"], "admit:" + digest([run["run_id"], image["image_id"], ref]))
+            bindings.append({"image_id": image["image_id"], "reference": ref})
+        run["memory_bindings"] = bindings
+        state["memory_bindings"] = bindings
+        self.db.execute("UPDATE medical_cases SET payload=? WHERE patient=? AND encounter=?", (packed(state), self.patient, run["encounter_id"]))
+
+    def _sync_visual(self, run):
+        visual = self.latest(run, "visual")
+        if not visual:
+            fail("missing_visual", "Key2 requires grounded visual observations")
+        images = {i["image_id"]: i for i in run["input"]["images"]}
+        for binding in run.get("memory_bindings", []):
+            image_id = binding["image_id"]
+            self.store.link_visual(binding["reference"], images[image_id],
+                [r for r in visual["regions"] if r["image_id"] == image_id],
+                [f for f in visual["findings"] if f["image_id"] == image_id], run["run_id"],
+                "evidence:" + digest([run["run_id"], binding, visual]))
+        run["memory_epoch"] = self._memory_epoch()
+
+    def _query(self, run, key, extra):
+        patient = self.latest(run, "patient")
+        if not patient:
+            fail("missing_intake", "Patient assessment must precede retrieval")
+        features = dict(patient.get("features", {}))
+        descriptions = list(patient["phenotype"])
+        if key == "key2":
+            visual = self.latest(run, "visual")
+            views = {v["view_id"]: v for v in run["views"]}
+            for finding in visual["findings"]:
+                if finding["certainty"] == "clear" and any(v == finding["image_id"] or views.get(v, {}).get("kind") == "crop" for v in finding["supporting_views"]):
+                    descriptions.extend([finding["description"], *finding["tags"]])
+        if extra:
+            validate(extra, text())
+            descriptions.append(extra)  # search expansion, not evidence validation
+        combined = " ".join([features.get("text", ""), *descriptions]).strip()
+        if combined:
+            features["text"] = combined
+        if not features:
+            features = {"text": "unknown"}
+        excluded = [r["record_id"] for category in ("lesion", "experience", "care", "doctor")
+                    for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]]
+        if len(excluded) > 100:
+            fail("context_limit", "Current encounter exceeds the bounded exclusion budget")
+        return {"lesion_query": features, "care_query": " ".join(patient["history"]),
+                "experience_query": " ".join(patient["history"]), "doctor_query": combined,
+                "exclude_record_ids": excluded, "top_k": self.candidate_limit}
+
+    def _candidate(self, item, result):
+        lesion = item["lesion"]
+        scope = lesion.get("memory_scope", "patient")
+        ref = reference(lesion)
+        packet = next(p for p in result["source_packets"] if p["scope"] == scope)
+        if scope == "library":
+            case = self.library.published(lesion["case_id"], lesion["version"])
+            identifier = case["case_id"]
+        else:
+            identifier = "personal:" + digest([self.patient, lesion["record_id"]])[:32]
+            experience = [m["record"]["description"] for m in result["supplementary"]["experience"]
+                          if m["record"].get("patient_id") == self.patient and
+                          (lesion["lesion_id"] in m["record"].get("lesion_ids", []) or m["record"]["encounter_id"] == lesion["encounter_id"])]
+            notes = [m["record"]["description"] for m in result["supplementary"]["doctor"] if m["record"].get("patient_id") == self.patient]
+            case = {"case_id": identifier, "version": lesion["version"], "domain": self.domain,
+                    "phenotype": [descriptor_text(lesion)], "context": experience,
+                    "evidence": ["来源：" + lesion["source_ref"], *notes],
+                    "experience": " ".join(c["record"]["description"] for c in item["care"]),
+                    "pitfalls": [], "outcome": " ".join(c["record"]["outcome"] for c in item["care"]),
+                    "source_ref": lesion["source_ref"], "review_status": lesion["review_status"],
+                    "images": [v["image"] for v in lesion.get("visual", [])],
+                    "regions": [r for v in lesion.get("visual", []) for r in v["regions"]]}
+        return {**case, "case_id": identifier, "memory_scope": scope, "memory_reference": ref,
+                "memory_retrieval_id": packet["retrieval_id"], "lesion_id": lesion["lesion_id"],
+                "phenotype_score": item["phenotype_score"], "care_score": item["care_score"],
+                "history_score": item["care_score"], "utility": lesion["stats"]["utility_score"],
+                "decay_score": lesion["stats"]["decay_score"], "frequency": lesion["stats"]["frequency"], "exposures": lesion["stats"]["exposure_count"],
+                "associated_care": item["care"], "visual_annotations": lesion.get("visual", [])}
+
     def retrieve(self, run_id, key, query=None):
         if key not in ("key1", "key2"):
             fail("invalid_key", "Use key1 or key2")
@@ -313,64 +430,35 @@ class MedicalProject:
             run = self.run(run_id)
             if run["status"] != "running" or len(run["retrievals"]) >= 6:
                 fail("retrieval_limit", "Retrieval budget exhausted or run closed")
-            patient = self.latest(run, "patient")
-            if not patient:
-                fail("missing_intake", "Patient assessment must precede retrieval")
-            phenotype = list(patient["phenotype"])
             if key == "key2":
-                visual = self.latest(run, "visual")
-                if not visual:
-                    fail("missing_visual", "Key2 requires visual observations")
-                views = {x["view_id"]: x for x in run["views"]}
-                # Occlusion changes never become standalone positive visual evidence.
-                for f in visual["findings"]:
-                    if f["certainty"] == "clear" and any(v == f["image_id"] or views.get(v, {}).get("kind") == "crop" for v in f["supporting_views"]):
-                        phenotype.extend([f["description"], *f["tags"]])
-            if query is not None:
-                validate(query, text())
-                # Extra search text only broadens candidate recall; it cannot validate an observation.
-            scan = self.shared.execute("SELECT * FROM cases WHERE domain=? ORDER BY id LIMIT 10001", (self.domain,)).fetchall()
-            if len(scan) > 10000:
-                fail("index_required", "Shared library exceeds baseline index capacity; install an indexed retriever")
-            ranked = []
-            for row in scan:
-                case = json.loads(row["payload"])
-                p = similarity(phenotype, case["phenotype"])
-                extra = similarity(query or "", case["phenotype"])
-                if max(p, extra) <= 0:
-                    continue
-                h = similarity(patient["history"], case["context"])
-                utility = (row["helpful"] + 1) / (row["helpful"] + row["unhelpful"] + 2)
-                frequency = "low_frequency" if row["unhelpful"] >= 3 and utility < .3 else "normal"
-                ranked.append({**case, "phenotype_score": round(p, 6), "history_score": round(h, 6),
-                               "search_score": round(extra, 6), "utility": utility, "frequency": frequency,
-                               "exposures": row["exposures"]})
-            # Clinical/visual relevance dominates. Utility breaks comparable relevance ties.
-            ranked.sort(key=lambda c: (int(max(c["phenotype_score"], c["search_score"]) * 10),
-                                      c["history_score"], c["utility"] * (.2 if c["frequency"] == "low_frequency" else 1),
-                                      c["phenotype_score"], c["case_id"]), reverse=True)
-            cases = ranked[:10]
-            # Deterministic rotating exploration from otherwise low-frequency matching cases.
-            low = [c for c in ranked[10:] if c["frequency"] == "low_frequency"]
-            if low:
-                cases.append(low[int(digest(run_id + key)[:8], 16) % len(low)])
-            self.shared.execute("BEGIN IMMEDIATE")
-            try:
-                for c in cases:
-                    cursor = self.shared.execute("INSERT OR IGNORE INTO deliveries(run,id,version) VALUES(?,?,?)", (run_id, c["case_id"], c["version"]))
-                    if cursor.rowcount:
-                        self.shared.execute("UPDATE cases SET exposures=exposures+1 WHERE id=?", (c["case_id"],))
-                self.shared.commit()
-            except BaseException:
-                self.shared.rollback()
-                raise
-            result = {"retrieval_id": uuid.uuid4().hex, "key": key, "query_terms": phenotype,
-                      "additional_query": query or "", "cases": cases, "searched_entire_domain": True,
-                      "scoring": "phenotype band > history relevance > utility/frequency tie-break; model ranking is separate"}
-            run["retrievals"].append(result)
+                self._sync_visual(run)
+            arguments = self._query(run, key, query)
+            # One global initial ranking by the original engine. The retrieval Agent reranks afterward.
+            result = self.store.retrieve(arguments, sources=(self.library,), initial_only=True, consultation_id=run_id)
+            fresh = [self._candidate(item, result) for item in result["candidates"]]
+            merged = {c["case_id"]: dict(c) for c in (run["retrievals"][-1]["cases"] if key == "key2" and run["retrievals"] else [])}
+            for c in fresh:
+                if c["case_id"] not in merged or c["version"] >= merged[c["case_id"]]["version"]:
+                    merged[c["case_id"]] = c
+            # Rescore the UNION, refreshing D once per stage. Never carry an earlier model score forward.
+            cases = []
+            for c in merged.values():
+                target = self.store if c["memory_scope"] == "patient" else self.library
+                current = target.get({"category": c["memory_reference"]["category"], "record_id": c["memory_reference"]["record_id"], "include_versions": False})["record"]
+                if current["version"] == c["version"]:
+                    cases.append(c)
+            for c in cases:
+                target = self.store if c["memory_scope"] == "patient" else self.library
+                c["decay_score"] = target.memory_stats(c["memory_reference"])["decay_score"]
+            response = {"retrieval_id": result["retrieval_id"], "key": key, "query": arguments,
+                        "cases": cases, "initial_candidates": [{"case_id": c["case_id"], "version": c["version"]} for c in fresh], "stage": "initial_retrieval", "status": result["status"], "required_context": result["required_context"],
+                        "supplementary": result["supplementary"], "source_packets": result["source_packets"],
+                        "searched_entire_domain": True, "scoring": "initial: phenotype DESC > care DESC; model reranking: M * D, then Top-K",
+                        "ranking": result["ranking"], "algorithm": result["algorithm"] if "algorithm" in result else "original hierarchical memory retrieval"}
+            run["retrievals"].append(response)
             self._write_run(run)
             self.db.commit()
-            return result
+            return response
         except BaseException:
             self.db.rollback()
             raise
@@ -421,10 +509,12 @@ class MedicalProject:
         run = self.run(run_id, current=False)
         state = self.state(run["encounter_id"])
         private = {x["image_id"] for x in run["input"]["images"]} | {v["asset_id"] for v in run["views"]}
-        if image_id in private:
+        historical_private = {x["image_id"] for r in run["retrievals"] for c in r["cases"]
+                              if c.get("memory_scope") == "patient" for x in c["images"]}
+        if image_id in private | historical_private:
             path = self._private_dir() / (image_id + ".png")
         else:
-            delivered = {x["image_id"] for r in run["retrievals"] for c in r["cases"] for x in c["images"]}
+            delivered = {x["image_id"] for r in run["retrievals"] for c in r["cases"] if c.get("memory_scope", "library") == "library" for x in c["images"]}
             if image_id not in delivered:
                 fail("forbidden_image", "Image is not part of this patient's consultation")
             path = self.assets / "shared" / (image_id + ".png")
@@ -455,6 +545,13 @@ class MedicalProject:
     def list_runs(self, encounter_id):
         return [json.loads(r["payload"]) for r in self.db.execute("SELECT payload FROM medical_runs WHERE patient=? AND encounter=? ORDER BY rowid DESC LIMIT 10", (self.patient, encounter_id))]
 
+    def _doctor_memory(self, encounter, identifier, description, note_type):
+        note = {"record_id": "medical-" + digest(identifier)[:40], "encounter_id": encounter,
+                "event_time": str(int(time.time())), "source_ref": identifier, "source": "doctor",
+                "review_status": "doctor_confirmed", "lesion_ids": [], "note_type": note_type,
+                "description": description, "related_record_ids": [], "question_status": "not_applicable", "answer": ""}
+        self.store.put("doctor", {"record": note, "expected_version": 0})
+
     def review(self, run_id, expected_revision, confirmed, note, outcome):
         self.doctor()
         validate(expected_revision, {"type": "integer", "minimum": 1})
@@ -469,6 +566,8 @@ class MedicalProject:
                 fail("version_conflict", "Review a completed current consultation")
             run["doctor_review"] = {"note": note, "outcome": outcome, "time": int(time.time()), "revision": expected_revision}
             run["status"] = "doctor_reviewed"
+            self._doctor_memory(run["encounter_id"], "review:" + run_id, note + "；医生确认结果：" + outcome, "supplement")
+            run["memory_epoch"] = self._memory_epoch()
             self._write_run(run)
             self.db.commit()
             return run
@@ -490,6 +589,7 @@ class MedicalProject:
                 fail("context_limit", "Start another encounter")
             state["messages"].append({"id": "doctor:" + event_id, "text": "医生纠正：" + note})
             state["revision"] += 1
+            self._doctor_memory(encounter_id, "correction:" + event_id, note, "correction")
             self.db.execute("UPDATE medical_cases SET revision=?,payload=? WHERE patient=? AND encounter=?", (state["revision"], packed(state), self.patient, encounter_id))
             self.db.commit()
             return state
@@ -514,10 +614,12 @@ class MedicalProject:
         if not run["doctor_review"] or run["status"] != "doctor_reviewed" or confirmed is not True or deidentified is not True:
             fail("publication_not_authorized", "Doctor review and explicit deidentification/authorization confirmation are required")
         validate(case_id, text())
+        if case_id.startswith("personal:"):
+            fail("invalid_case_id", "personal: is reserved for original patient memory identities")
         validate(expected_version, {"type": "integer", "minimum": 0})
         validate(case, obj({"phenotype": strings(), "context": strings(), "evidence": strings(),
                            "experience": text(), "pitfalls": strings(), "outcome": text(), "source_ref": text(),
-                           "image_ids": strings(), "regions": array(REGION, 6), "redactions": array(REGION, 10)},
+                           "image_ids": strings(), "regions": array(REGION, 6), "redactions": array(REGION, 10), "features": obj(PHENOTYPE, PHENOTYPE)},
                           ("phenotype", "context", "evidence", "experience", "pitfalls", "outcome", "source_ref", "image_ids", "regions")))
         if not case["phenotype"] or not case["image_ids"] or len(case["image_ids"]) > 3 or len(packed(case)) > 24000:
             fail("invalid_publication", "A bounded case needs phenotype and one to three reviewed images")
@@ -557,8 +659,9 @@ class MedicalProject:
                 fail("domain_conflict", "Case id belongs to another disease profile")
             if (previous["version"] if previous else 0) != expected_version:
                 fail("version_conflict", "Shared case version changed")
-            self.shared.execute("INSERT INTO cases(id,version,domain,payload) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,domain=excluded.domain,payload=excluded.payload,helpful=0,unhelpful=0,exposures=0", (case_id, value["version"], self.domain, packed(value)))
+            self.shared.execute("INSERT INTO cases(id,version,domain,payload) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,domain=excluded.domain,payload=excluded.payload", (case_id, value["version"], self.domain, packed(value)))
             self.shared.execute("INSERT INTO case_versions VALUES(?,?,?)", (case_id, value["version"], packed(value)))
+            self.library.index_case(value)
             self.shared.commit()
         except BaseException:
             self.shared.rollback()
@@ -566,32 +669,40 @@ class MedicalProject:
         return value
 
     def feedback(self, run_id, case_id, version, kind, reason):
+        """Route a case verdict to the original versioned memory_feedback mechanism."""
         self.doctor()
-        validate(version, {"type": "integer", "minimum": 1})
-        validate(reason, text())
+        validate(version, {"type": "integer", "minimum": 1}); validate(reason, text())
         if kind not in ("helpful", "not_helpful"):
             fail("invalid_feedback", "Only observed helpful/not_helpful feedback changes utility")
         run = self.run(run_id, current=False)
-        if not run["doctor_review"]:
-            fail("review_required", "Doctor must review the consultation first")
-        if not any(c["case_id"] == case_id and c["version"] == version for r in run["retrievals"] for c in r["cases"]):
+        candidate = next((c for r in run["retrievals"] for c in r["cases"] if c["case_id"] == case_id and c["version"] == version), None)
+        if candidate is None:
             fail("invalid_reference", "Case version was not delivered in this consultation")
-        self.shared.execute("BEGIN IMMEDIATE")
+        scope = candidate.get("memory_scope", "library")
+        ref = candidate.get("memory_reference") or {"category": "lesion", "record_id": published_record_id(case_id, self.domain, "lesion"), "version": version}
+        receipt = candidate.get("memory_retrieval_id") or self.library.legacy_receipt(run_id, case_id, version)
+        target = self.store if scope == "patient" else self.library
+        payload = packed({"kind": kind, "reason": reason})
+        self.db.execute("BEGIN IMMEDIATE")
         try:
-            row = self.shared.execute("SELECT feedback FROM deliveries WHERE run=? AND id=? AND version=?", (run_id, case_id, version)).fetchone()
-            if not row:
-                fail("invalid_reference", "Missing delivery receipt")
-            if row["feedback"]:
-                old = json.loads(row["feedback"])
-                if old != {"kind": kind, "reason": reason}:
-                    fail("feedback_conflict", "One outcome per case version per consultation")
-                self.shared.commit()
-                return {"recorded": False, "duplicate": True}
-            self.shared.execute("UPDATE deliveries SET feedback=? WHERE run=? AND id=? AND version=?", (packed({"kind": kind, "reason": reason}), run_id, case_id, version))
-            column = "helpful" if kind == "helpful" else "unhelpful"
-            self.shared.execute(f"UPDATE cases SET {column}={column}+1 WHERE id=? AND version=?", (case_id, version))
-            self.shared.commit()
-            return {"recorded": True}
+            old = self.db.execute('''SELECT payload FROM medical_case_feedback WHERE patient=? AND run=? AND scope=? AND category=? AND record_id=? AND version=?''',
+                (self.patient, run_id, scope, ref["category"], ref["record_id"], ref["version"])).fetchone()
+            if old:
+                if old["payload"] != payload:
+                    fail("feedback_conflict", "One outcome per original memory version per consultation")
+                self.db.commit()
+                return {"recorded": False, "duplicate": True, "reference": ref, "memory_scope": scope}
+            # Legacy feedback rows were migrated without incrementing their archived counters again.
+            legacy = target.db.execute('''SELECT kind,reason FROM memory_feedback WHERE patient_id=? AND retrieval_id=?
+                AND category=? AND record_id=? AND version=? AND kind!='used' LIMIT 1''',
+                (target.patient_id, receipt, ref["category"], ref["record_id"], ref["version"])).fetchone()
+            if legacy and (legacy["kind"] != kind or legacy["reason"] != reason):
+                fail("feedback_conflict", "This delivered memory already has a verdict")
+            response = target.memory_feedback({"event_id": "team:" + digest([run_id, scope, ref]),
+                "retrieval_id": receipt, "reference": ref, "kind": kind, "reason": reason})
+            self.db.execute("INSERT INTO medical_case_feedback VALUES(?,?,?,?,?,?,?)", (self.patient, run_id, scope, ref["category"], ref["record_id"], ref["version"], payload))
+            self.db.commit()
+            return {"recorded": not response["idempotent"], "duplicate": response["idempotent"], "reference": ref, "memory_scope": scope}
         except BaseException:
-            self.shared.rollback()
+            self.db.rollback()
             raise

@@ -63,8 +63,8 @@ class TeamTests(unittest.TestCase):
         p = project or self.p; run_id = self.start(p)
         image_id = p.state('visit')['images'][0]['image_id']
         p.save_output(run_id, 'patient', patient(phenotype))
-        p.retrieve(run_id, 'key1')
-        p.save_output(run_id, 'retrieval', {'ranking': [], 'transferable_lessons': [], 'limitations': ['无匹配病例']})
+        initial = p.retrieve(run_id, 'key1')
+        p.save_output(run_id, 'retrieval', {'ranking': [{'case_id':c['case_id'],'version':c['version'],'relevance':80,'supports':['表征可比较'],'contradictions':[],'reason':'仅作为检查经验参考'} for c in initial['cases']], 'transferable_lessons': [], 'limitations': ['无匹配病例']})
         p.save_output(run_id, 'visual', visual(image_id))
         p.make_views(run_id)
         p.save_output(run_id, 'reasoning', reasoning())
@@ -182,16 +182,17 @@ class TeamTests(unittest.TestCase):
         self.assertEqual(im.getpixel((0,0)), (0,0,0))
         self.assertEqual(doc.shared.execute('SELECT COUNT(*) FROM case_versions').fetchone()[0], 2)
 
-    def test_exposure_does_not_reward_feedback_counts_once_after_doctor_review(self):
+    def test_feedback_reuses_original_memory_stats_without_a_second_review_gate(self):
         _, doc, _, _ = self.publish_case()
         other = self.project('patient-b'); run = self.complete(other)
         self.assertEqual(other.shared.execute('SELECT helpful FROM cases').fetchone()[0], 0)
         d2 = self.project('patient-b', 'doctor')
-        with self.assertRaises(MemoryError): d2.feedback(run, 'case-1', 1, 'helpful', 'reason')
         d2.review(run, 1, True, '核对完毕', '已确认')
         self.assertTrue(d2.feedback(run, 'case-1', 1, 'helpful', 'reason')['recorded'])
         self.assertTrue(d2.feedback(run, 'case-1', 1, 'helpful', 'reason')['duplicate'])
-        self.assertEqual(doc.shared.execute('SELECT helpful FROM cases').fetchone()[0], 1)
+        ref = {'category':'lesion','record_id':__import__('case_library').record_id('case-1', doc.domain, 'lesion'),'version':1}
+        self.assertEqual(doc.library.memory_stats(ref)['positive'], 1)
+        self.assertEqual(doc.shared.execute('SELECT helpful FROM cases').fetchone()[0], 0)  # archived legacy counter
         with self.assertRaises(MemoryError): d2.feedback(run, 'case-1', 1, 'not_helpful', 'changed')
 
     def test_approving_audit_requires_all_five_roles(self):

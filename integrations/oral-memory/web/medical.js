@@ -58,16 +58,17 @@
     const cases = new Map(run.retrievals.flatMap(r => r.cases).map(c => [c.case_id + ':' + c.version, c]));
     for (const c of cases.values()) {
       const row = document.createElement('div'), label = document.createElement('p');
-      label.textContent = c.case_id + ' · v' + c.version + ' · 表征相关性 ' + c.phenotype_score.toFixed(2) + ' · 长期效用 ' + c.utility.toFixed(2);
+      const reranked = [...(run.rerankings || [])].reverse().flatMap(r => r.ranking).find(r => r.case_id === c.case_id && r.version === c.version);
+      label.textContent = c.case_id + ' · v' + c.version + ' · 初排表征相关性 ' + c.phenotype_score.toFixed(2) + ' · 模型重排分 ' + (reranked ? reranked.relevance : '未推荐') + ' · 迭代分 ' + (Number.isFinite(reranked?.decay_score ?? c.decay_score) ? (reranked?.decay_score ?? c.decay_score).toFixed(2) : '旧轮次未记录') + ' · 最终分 ' + (Number.isFinite(reranked?.final_score) ? reranked.final_score.toFixed(2) : '未打分');
       row.append(label);
       for (const [kind, text] of [['helpful', '医生确认本例有参考价值'], ['not_helpful', '医生确认本例无参考价值']]) {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
-        button.onclick = () => action(async () => { if (!run.doctor_review) throw new Error('请先保存本轮医生复核。'); const reason = el('medical-note').value.trim(); if (!reason) throw new Error('请填写反馈依据。'); await api('/api/medical/feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version, kind, reason }); notice('反馈已记录，同一病例版本在本轮仅计分一次。'); });
+        button.onclick = () => action(async () => { const reason = el('medical-note').value.trim(); if (!reason) throw new Error('请填写反馈依据。'); await api('/api/medical/feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version, kind, reason }); notice('反馈已记录，同一病例版本在本轮仅计分一次。'); });
         row.append(button);
       }
       el('medical-feedback').append(row);
     }
-    const recommendation = latest(run, 'retrieval');
+    const recommendation = run.rerankings?.at(-1) || latest(run, 'retrieval');
     if (recommendation) { const pre = document.createElement('pre'); pre.textContent = JSON.stringify(recommendation, null, 2); el('medical-feedback').prepend(pre); }
   }
   async function action(fn) { try { await fn(); } catch (error) { notice(error.message); } }

@@ -12,7 +12,7 @@ Implementation and usage: [五角色医疗框架](integrations/oral-memory/TEAM.
 
 This distribution preserves the Harness runtime, Cordis vendor sources, native capabilities, dependency patches and application entry points. Oral business behavior uses the existing MCP client and a patient-specific agent preset.
 
-Four memory categories store lesion descriptions, oral experiences, care history and doctor feedback. Retrieval prioritizes lesion phenotype relevance before associated care relevance. Low utility reduces selection frequency among equally relevant records; records are retained. The interview asks one main question at a time, handles missing or conflicting information and prioritizes doctor follow-ups. A local doctor form supplies corrections, questions and review decisions.
+Four memory categories store lesion descriptions, oral experiences, care history and doctor feedback. Retrieval prioritizes lesion phenotype relevance before associated care relevance. Original memory records now carry versioned image evidence. The team initially retrieves by phenotype and care relevance, then ranks by temporary model score times iteration decay and selects Top-K. Decay starts at 1 and drops by 0.1 per ineffective-use verdict; Key2 merges and rescores candidates. Records are retained. The interview asks one main question at a time, handles missing or conflicting information and prioritizes doctor follow-ups. A local doctor form supplies corrections, questions and review decisions.
 
 ## Start
 

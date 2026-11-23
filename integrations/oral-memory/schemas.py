@@ -41,7 +41,7 @@ COMMON = {
 LINKS = {"lesion_ids": strings()}
 RECORDS = {
     "lesion": obj({**COMMON, "lesion_id": text(), "features": obj(PHENOTYPE, PHENOTYPE),
-                   "size_description": text(), "pathology": PATHOLOGY},
+                   "size_description": text(), "pathology": PATHOLOGY, "visual_description": text(empty=True)},
                   (*COMMON, "lesion_id", "features", "size_description", "pathology")),
     "experience": obj({**COMMON, **LINKS,
                        "experience_type": choice("symptom", "habit", "injury", "self_care", "other_oral"),
@@ -181,7 +181,7 @@ def tools(role):
         {"name": "patient_turn", "description": "Commit extracted patient information and memory writes atomically; return one next question with memory context. Use event_id for retry and the current case revision.", "inputSchema": PATIENT_TURN},
         {"name": "memory_feedback", "description": "Record actual use of a delivered memory reference. Patient callers may report used only; doctor feedback controls utility. Scores are never supplied by the model.", "inputSchema": FEEDBACK},
         {"name": "retrieve", "description": (
-            "Hierarchical oral memory retrieval: stage 1 recalls lesion descriptors; stage 2 "
+            "Initial hierarchical oral memory retrieval: stage 1 recalls lesion descriptors; stage 2 "
             "scores ONLY associated care records. Strict order is phenotype score first, care "
             "score second (priority levels, not numeric weights). Experience and doctor notes "
             "are searched separately and never change that order. Empty phenotype needs clarification."

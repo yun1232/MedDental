@@ -1,4 +1,4 @@
-> 新增多模态团队入口与共享病例经验，见 [TEAM.zh.md](TEAM.zh.md)。下文四类记忆描述的是保留的患者私有 MCP 接口；新增图片、共享检索和五角色运行由团队模块提供。
+> 原有四类记忆与视觉已融合：原检索初排 → 模型临时分 × 原有迭代分 → Top-K；Key2 合并候选重新打分。图像关联原记录版本，反馈复用原接口。最新规则见 [TEAM.zh.md](TEAM.zh.md)。
 
 ---
 description: "通过现有 DSH MCP 客户端配置与使用患者隔离的口腔白斑记忆的参考说明。"
@@ -68,7 +68,7 @@ Web 命令是部署入口；本次没有运行真实 Web/模型会话。CLI 配�
 
 服务把白斑描述渲染成确定性的 `OLK/1` 文本，同时保留类型化 JSON。未知信息保持显式未知。病理结果来自提供的报告或医生来源，不参与图片外观匹配。记忆库不依赖历史图片字节。该集成不会改变原框架现有的附件保留策略。
 
-`retrieve` 分别接收 `lesion_query`、`care_query`、`experience_query` 和 `doctor_query`。第一级匹配已知表征字段，可附加仅含外观的文本。未知字段不能因双方均未知而匹配。第二级只检索每条候选关联的诊疗记录。保持白斑表征相关性优先、关联诊疗相关性其次。在相关性完全相同的组内，效用分和频率控制加权抽样，并保留非零探索概率；诊疗或效用不能越过更相关的表征。经历和医生反馈独立检索为补充证据，不改变该排序。
+`retrieve` 分别接收 `lesion_query`、`care_query`、`experience_query` 和 `doctor_query`。第一级匹配已知表征字段，可附加仅含外观的文本。未知字段不能因双方均未知而匹配。第二级只检索每条候选关联的诊疗记录。保持白斑表征相关性优先、关联诊疗相关性其次。在相关性完全相同的组内，迭代分和频率控制原 MCP 接口的加权抽样；团队初排不重复应用这些权重，并保留非零探索概率；诊疗或效用不能越过更相关的表征。经历和医生反馈独立检索为补充证据，不改变该排序。
 
 显式白斑关联可以跨就诊，空白斑关联列表仅适用于本次就诊。明确关联其他白斑的记录，不能因就诊相同而挂接。没有已知表征时返回 `needs_clarification`，没有正相关结果时返回 `no_match`，均不暗中回退到其他类别。明确查询某一类别时用 `search`，读取指定记录及版本用 `get`。空查询表示最近写入顺序，不代表语义相关性或事件时间顺序。
 
@@ -92,9 +92,9 @@ python3 integrations/oral-memory/doctor_portal.py --port 8765
 
 ## 效用与低频
 
-没有删除工具或自动删除。效用为 `(1+positive)/(2+positive+negative)`，新版本从 0.5 开始。提供给模型、实际使用和确认有帮助分别记录；模型只能对检索回执中包含的记录报告 `used`，增加使用次数而不给自己加分。医生确认有帮助累计正反馈 1，确认无帮助累计负反馈 1，确认有机会但未使用累计弱负反馈 0.1。同一回执同一版本的同类反馈去重。
+没有删除工具或自动删除。迭代分从1开始，每次唯一无帮助反馈扣0.1；临时模型分只用于本轮比较。兼容效用统计为 `(1+positive)/(2+positive+negative)`，新版本从 0.5 开始。提供给模型、实际使用和确认有帮助分别记录；模型只能对检索回执中包含的记录报告 `used`，增加使用次数而不给自己加分。医生确认有帮助累计正反馈 1，确认无帮助累计负反馈 1，确认有机会但未使用累计弱负反馈 0.1。同一回执同一版本的同类反馈去重。
 
-至少提供 10 次且效用低于 0.3 后进入低频。在同等相关组内，低频权重为 `(utility+0.05)*0.2`，正常权重为 `utility+0.05`，抽样混合 90% 加权选择和 10% 均匀探索。默认值可用 `ORAL_MEMORY_LOW_FREQUENCY_MIN_EXPOSURES`、`ORAL_MEMORY_LOW_FREQUENCY_THRESHOLD`、`ORAL_MEMORY_LOW_FREQUENCY_MULTIPLIER`、`ORAL_MEMORY_UTILITY_FLOOR`、`ORAL_MEMORY_EXPLORATION_RATE`、`ORAL_MEMORY_UNUSED_PENALTY` 配置。从未提供的记忆不会因为没有使用而扣分。
+至少提供 10 次且效用低于 0.3 后进入低频。在同等相关组内，低频权重为 `(decay_score+0.05)*0.2`，正常权重为 `decay_score+0.05`，抽样混合 90% 加权选择和 10% 均匀探索。默认值可用 `ORAL_MEMORY_LOW_FREQUENCY_MIN_EXPOSURES`、`ORAL_MEMORY_LOW_FREQUENCY_THRESHOLD`、`ORAL_MEMORY_LOW_FREQUENCY_MULTIPLIER`、`ORAL_MEMORY_UTILITY_FLOOR`、`ORAL_MEMORY_EXPLORATION_RATE`、`ORAL_MEMORY_UNUSED_PENALTY` 配置。从未提供的记忆不会因为没有使用而扣分。
 
 必读上下文直接包含未完成医生追问、当前诊断和冲突状态，不受频率影响。`get` 和明确的最近历史查询保留低频记录。医生通过 `set_frequency` 恢复正常频率或保护当前版本。v1 数据库以新增表方式迁移到 v2，已有记忆和版本行保持不变，过程见 `MIGRATIONS.txt`。
 

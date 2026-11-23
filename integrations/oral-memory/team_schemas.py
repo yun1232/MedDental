@@ -1,5 +1,5 @@
 """Closed, bounded contracts shared by the Harness team and deterministic store."""
-from schemas import obj, text, choice, strings, MemoryError, validate
+from schemas import obj, text, choice, strings, MemoryError, validate, QUERY_FEATURES, REFERENCE
 
 
 def array(item, maximum=20):
@@ -21,9 +21,10 @@ HYPOTHESIS = obj({"name": text(), "support_ids": strings(), "against_ids": strin
                   "missing": strings()}, ("name", "support_ids", "against_ids", "missing"))
 OUTPUTS = {
     "patient": obj({"summary": text(), "phenotype": strings(), "history": strings(),
-                    "missing": strings(), "next_question": text(empty=True), "red_flags": strings()},
+                    "missing": strings(), "next_question": text(empty=True), "red_flags": strings(),
+                    "features": QUERY_FEATURES, "image_bindings": array(obj({"image_id": text(), "reference": REFERENCE}, ("image_id", "reference")), 3)},
                    ("summary", "phenotype", "history", "missing", "next_question", "red_flags")),
-    "retrieval": obj({"ranking": array(RANK, 12), "transferable_lessons": strings(), "limitations": strings()},
+    "retrieval": obj({"ranking": array(RANK, 72), "transferable_lessons": strings(), "limitations": strings()},
                      ("ranking", "transferable_lessons", "limitations")),
     "visual": obj({"findings": array(FINDING, 30), "regions": array(REGION, 2),
                    "quality_issues": strings(), "mask_sensitivity": strings()},

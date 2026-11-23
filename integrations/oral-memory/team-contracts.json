@@ -51,6 +51,117 @@
         },
         "maxItems": 100,
         "uniqueItems": true
+      },
+      "features": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "left",
+              "right",
+              "midline",
+              "bilateral"
+            ]
+          },
+          "tooth_positions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "color": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "morphology": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "surface": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "border": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "extent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "image_bindings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "image_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "reference": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "lesion",
+                    "experience",
+                    "care",
+                    "doctor"
+                  ]
+                },
+                "record_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 12000
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "category",
+                "record_id",
+                "version"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "image_id",
+            "reference"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 3
       }
     },
     "required": [
@@ -121,7 +232,7 @@
           ],
           "additionalProperties": false
         },
-        "maxItems": 12
+        "maxItems": 72
       },
       "transferable_lessons": {
         "type": "array",

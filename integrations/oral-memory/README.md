@@ -1,4 +1,4 @@
-> 新增多模态团队入口与共享病例经验，见 [TEAM.zh.md](TEAM.zh.md)。下文四类记忆描述的是保留的患者私有 MCP 接口；新增图片、共享检索和五角色运行由团队模块提供。
+> 原有四类记忆与视觉已融合：原检索初排 → 模型临时分 × 原有迭代分 → Top-K；Key2 合并候选重新打分。图像关联原记录版本，反馈复用原接口。最新规则见 [TEAM.zh.md](TEAM.zh.md)。
 
 ---
 description: "Reference for configuring and using patient-bound oral leukoplakia memory through the existing DSH MCP client."
@@ -92,9 +92,9 @@ Open `http://127.0.0.1:8765`, enter the token and encounter ID, then load the ca
 
 ## Utility and low frequency
 
-No delete tool or automatic deletion is provided. Utility is `(1+positive)/(2+positive+negative)`. Newly written versions start at 0.5. Delivery, actual use and verified usefulness are different events. The model can report `used` only for a reference contained in its retrieval receipt; this increments use count without rewarding itself. Doctor feedback contributes +1 positive for helpful, +1 negative for not helpful, or +0.1 negative for a confirmed unused opportunity. Duplicate feedback of the same kind for the same receipt and version is ignored.
+No delete tool or automatic deletion is provided. Iteration decay starts at 1 and decreases by 0.1 per unique ineffective-use verdict; temporary model scores are not persisted as memory utility. The compatibility utility statistic is `(1+positive)/(2+positive+negative)`. Newly written versions start at 0.5. Delivery, actual use and verified usefulness are different events. The model can report `used` only for a reference contained in its retrieval receipt; this increments use count without rewarding itself. Doctor feedback contributes +1 positive for helpful, +1 negative for not helpful, or +0.1 negative for a confirmed unused opportunity. Duplicate feedback of the same kind for the same receipt and version is ignored.
 
-After at least 10 deliveries and utility below 0.3, a record enters low frequency. Within an equal-relevance group, its weight is `(utility+0.05)*0.2`; normal records use `utility+0.05`. Sampling mixes 90 percent weighted selection and 10 percent uniform exploration. These defaults are deployment variables named `ORAL_MEMORY_LOW_FREQUENCY_MIN_EXPOSURES`, `ORAL_MEMORY_LOW_FREQUENCY_THRESHOLD`, `ORAL_MEMORY_LOW_FREQUENCY_MULTIPLIER`, `ORAL_MEMORY_UTILITY_FLOOR`, `ORAL_MEMORY_EXPLORATION_RATE` and `ORAL_MEMORY_UNUSED_PENALTY`. Unseen records receive no inactivity penalty.
+After at least 10 deliveries and utility below 0.3, a record enters low frequency. Within an equal-relevance group, its native-MCP weight is `(decay_score+0.05)*0.2`; normal records use `decay_score+0.05`. The team initial stage skips this weighting and applies iteration decay once after model scoring. Sampling mixes 90 percent weighted selection and 10 percent uniform exploration. These defaults are deployment variables named `ORAL_MEMORY_LOW_FREQUENCY_MIN_EXPOSURES`, `ORAL_MEMORY_LOW_FREQUENCY_THRESHOLD`, `ORAL_MEMORY_LOW_FREQUENCY_MULTIPLIER`, `ORAL_MEMORY_UTILITY_FLOOR`, `ORAL_MEMORY_EXPLORATION_RATE` and `ORAL_MEMORY_UNUSED_PENALTY`. Unseen records receive no inactivity penalty.
 
 Required context directly includes unresolved doctor questions, current diagnoses and conflict state, independently of frequency. `get` and explicit recent-history lookup retain low-frequency records. `set_frequency` lets a doctor restore normal frequency or protect a current version. Schema v1 databases migrate additively to v2; existing memory and revision rows are preserved. See `MIGRATIONS.txt` for the transition.
 

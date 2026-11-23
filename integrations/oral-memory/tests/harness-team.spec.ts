@@ -25,15 +25,37 @@ const root = fileURLToPath(new URL('../../../', import.meta.url))
 const resources: Array<() => Promise<unknown>> = []
 afterEach(async () => { for (const cleanup of resources.splice(0).reverse()) await cleanup() })
 
-async function fixture(reviewRoutes = ['approve'], imageCapable = true, seedCase = false) {
+async function fixture(reviewRoutes = ['approve'], imageCapable = true, seedCase = false, seedPersonal = false) {
   const directory = await mkdtemp(resolve(tmpdir(), 'medical-team-'))
   resources.push(() => rm(directory, { recursive: true, force: true }))
   const before = { ...process.env }
   Object.assign(process.env, { ORAL_MEMORY_ROOT: root, ORAL_MEMORY_DB: resolve(directory, 'memory.sqlite3'),
     ORAL_MEMORY_PATIENT_ID: 'synthetic-team', ORAL_MEMORY_ENCOUNTER_ID: 'visit',
-    MEDICAL_SHARED_DB: resolve(directory, 'shared.sqlite3'), MEDICAL_ASSET_ROOT: resolve(directory, 'images'), MEDICAL_DOMAIN: 'oral-leukoplakia' })
+    MEDICAL_SHARED_DB: resolve(directory, 'shared.sqlite3'), MEDICAL_ASSET_ROOT: resolve(directory, 'images'), MEDICAL_DOMAIN: 'oral-leukoplakia', MEDICAL_TOP_K: seedPersonal ? '1' : '5', MEDICAL_CANDIDATE_LIMIT: '12' })
   resources.push(async () => { for (const key of Object.keys(process.env)) if (!(key in before)) delete process.env[key]; Object.assign(process.env, before) })
   if (seedCase) execFileSync(process.env.ORAL_MEMORY_PYTHON || 'python3', ['-c', "import sys; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory/tests'); from test_team import TeamTests; t=TeamTests(); t.path=Path(sys.argv[1]); t.resources=[]; t.p=t.project('patient-a'); t.publish_case(); [(p.close(),s.close()) for p,s in reversed(t.resources)]", directory], { cwd: root })
+  if (seedPersonal) execFileSync(process.env.ORAL_MEMORY_PYTHON || 'python3', ['-c', `
+import sys,base64,io
+from pathlib import Path
+sys.path.insert(0,'integrations/oral-memory/tests')
+from test_memory import lesion,query
+from store import MemoryStore
+from team_memory import MedicalProject
+from extensions import reference
+from PIL import Image
+s=MemoryStore(Path(sys.argv[1])/'memory.sqlite3','synthetic-team','doctor')
+p=MedicalProject(s)
+for rid,site,color in [('native-a','颊黏膜',(10,20,30)),('native-b','舌',(30,20,10))]:
+ r=s.put('lesion',{'record':lesion(rid,'historical-'+rid,site=site),'expected_version':0})['record']
+ b=io.BytesIO();Image.new('RGB',(40,40),color).save(b,'PNG')
+ image=p._save_image(base64.b64encode(b.getvalue()).decode(),p._private_dir())
+ s.link_visual(reference(r),image,[],[],'old-memory',rid)
+for rid,count in [('native-a',6),('native-b',2)]:
+ for i in range(count):
+  receipt=s.retrieve(query(top_k=50))
+  s.memory_feedback({'event_id':rid+str(i),'retrieval_id':receipt['retrieval_id'],'reference':{'category':'lesion','record_id':rid,'version':1},'kind':'not_helpful','reason':'此前实际无帮助'})
+p.close();s.close()
+`, directory], { cwd: root })
   const ctx = new Context()
   resources.push(() => ctx.fiber.dispose())
   ctx.baseUrl = pathToFileURL(resolve(root, 'apps/cli/config') + '/').href
@@ -63,8 +85,17 @@ async function fixture(reviewRoutes = ['approve'], imageCapable = true, seedCase
     const imageId = text.match(/CURRENT ORIGINAL image_id=([^;]+)/)![1]
     seen.push({ role, all, text, imageId })
     let value
-    if (role === 'patient') value = { summary: '患者提供原图', phenotype: ['白色斑块'], history: [], missing: ['病理'], next_question: '有无病理报告？', red_flags: [] }
-    if (role === 'retrieval') value = { ranking: text.includes('\"case_id\":\"case-1\"') ? [{ case_id: 'case-1', version: 1, relevance: 88, supports: ['可见表征相似'], contradictions: ['病理尚缺'], reason: '迁移补充检查经验' }] : [], transferable_lessons: [], limitations: ['病理需另核查'] }
+    if (role === 'patient') value = { ...(seedPersonal ? { features: { site: '颊黏膜', color: '白色' } } : {}), summary: '患者提供原图', phenotype: ['白色斑块'], history: [], missing: ['病理'], next_question: '有无病理报告？', red_flags: [] }
+    if (role === 'retrieval') {
+      expect(text).not.toContain('"decay_score":')
+      expect(text).not.toContain('"final_score":')
+      expect(text).not.toContain('"utility":')
+      const message = all.find((b: any) => b.type === 'text' && b.text.startsWith('角色='))!.text
+      const data = JSON.parse(message.slice(message.indexOf('\n{') + 1))
+      const cases = data.run.retrievals.at(-1)?.cases ?? []
+      value = { ranking: cases.map((c: any) => ({ case_id: c.case_id, version: c.version, relevance: c.memory_reference.record_id === 'native-a' ? 90 : c.memory_reference.record_id === 'native-b' ? 80 : 88,
+        supports: ['当前证据可比较'], contradictions: ['病理尚缺'], reason: '本轮参考价值' })), transferable_lessons: [], limitations: ['病理需另核查'] }
+    }
     if (role === 'visual') {
       findings++
       value = { findings: [{ id: 'f1', image_id: imageId, description: '可见白色区域', supporting_views: [imageId], certainty: 'clear', tags: ['白色斑块'] }],
@@ -143,6 +174,21 @@ describe('image-aware medical team composition', () => {
     expect(seen.filter(s => s.role === 'review')).toHaveLength(2)
     expect(seen.filter(s => s.role === 'visual')).toHaveLength(6)
     expect(result(events)).toContain('awaiting_doctor')
+  }, 30000)
+
+  it('uses original private memories directly, hides iteration scores from the model, and selects by M times D', async () => {
+    const { seen, events } = await fixture(['approve'], true, false, true)
+    const event = events.find(e => e.type === 'tool/result' && e.data.message.source.callId === 'consult') as any
+    const completed = JSON.parse(event.data.message.content.find((b: any) => b.type === 'text').text)
+    expect(completed.status).toBe('awaiting_doctor')
+    const candidates = completed.retrievals[0].cases
+    expect(candidates[0].memory_reference.record_id).toBe('native-a')
+    const selected = completed.rerankings.at(-1).selected
+    const best = candidates.find((c: any) => c.memory_reference.record_id === 'native-b')
+    expect(selected).toHaveLength(1)
+    expect(selected[0]).toMatchObject({ case_id: best.case_id, model_score: 80, decay_score: .8, final_score: 64 })
+    expect(seen.find(s => s.role === 'visual')!.text).toContain('HISTORICAL REFERENCE case_id=' + best.case_id)
+    expect(completed.retrievals[1].cases).toHaveLength(2)
   }, 30000)
 
   it('refuses a text-only model before any child sees a reduced input', async () => {
