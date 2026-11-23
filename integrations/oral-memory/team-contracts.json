@@ -1,0 +1,451 @@
+{
+  "patient": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 12000
+      },
+      "phenotype": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "history": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "missing": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "next_question": {
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 12000
+      },
+      "red_flags": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "summary",
+      "phenotype",
+      "history",
+      "missing",
+      "next_question",
+      "red_flags"
+    ],
+    "additionalProperties": false
+  },
+  "retrieval": {
+    "type": "object",
+    "properties": {
+      "ranking": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "relevance": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "supports": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "contradictions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            }
+          },
+          "required": [
+            "case_id",
+            "version",
+            "relevance",
+            "supports",
+            "contradictions",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 12
+      },
+      "transferable_lessons": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "limitations": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "ranking",
+      "transferable_lessons",
+      "limitations"
+    ],
+    "additionalProperties": false
+  },
+  "visual": {
+    "type": "object",
+    "properties": {
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "image_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "supporting_views": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "certainty": {
+              "type": "string",
+              "enum": [
+                "clear",
+                "uncertain"
+              ]
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "image_id",
+            "description",
+            "supporting_views",
+            "certainty",
+            "tags"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 30
+      },
+      "regions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "image_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "box": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "maxItems": 4
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "basis": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "image_id",
+            "box",
+            "description",
+            "basis"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 2
+      },
+      "quality_issues": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "mask_sensitivity": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "findings",
+      "regions",
+      "quality_issues",
+      "mask_sensitivity"
+    ],
+    "additionalProperties": false
+  },
+  "reasoning": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 12000
+      },
+      "hypotheses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "support_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "against_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "name",
+            "support_ids",
+            "against_ids",
+            "missing"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 8
+      },
+      "case_refs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "case_id",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 12
+      },
+      "next_steps": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "uncertainties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "red_flags": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "summary",
+      "hypotheses",
+      "case_refs",
+      "next_steps",
+      "uncertainties",
+      "red_flags"
+    ],
+    "additionalProperties": false
+  },
+  "review": {
+    "type": "object",
+    "properties": {
+      "route": {
+        "type": "string",
+        "enum": [
+          "approve",
+          "patient",
+          "visual",
+          "retrieval",
+          "reasoning",
+          "human"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "required_changes": {
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 12000
+      }
+    },
+    "required": [
+      "route",
+      "issues",
+      "required_changes"
+    ],
+    "additionalProperties": false
+  }
+}

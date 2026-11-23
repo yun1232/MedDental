@@ -59,3 +59,6 @@ integrations/oral-memory/**/__pycache__/
 
 # Generated company-signed CUA release record.
 /packages/experimental/cua-macos/cua-helper.json
+
+# Default private/shared medical image vault (normally configured outside the checkout).
+medical-images/

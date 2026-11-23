@@ -31,7 +31,7 @@ class DoctorApplication:
         """Return HTTP status, media type and bytes without leaking internal exceptions."""
         parts = urlsplit(path)
         assets = {"/": ("doctor.html", "text/html"), "/doctor.js": ("doctor.js", "text/javascript"),
-                  "/doctor.css": ("doctor.css", "text/css")}
+                  "/doctor.css": ("doctor.css", "text/css"), "/medical.js": ("medical.js", "text/javascript")}
         if method == "GET" and parts.path in assets:
             filename, media_type = assets[parts.path]
             return 200, media_type + "; charset=utf-8", (Path(__file__).parent / "web" / filename).read_bytes()
@@ -43,11 +43,31 @@ class DoctorApplication:
             return 403, "application/json", b'{"error":"origin_refused"}'
         if len(raw) > MAX_BODY:
             return 413, "application/json", b'{"error":"request_too_large"}'
-        store = None
+        store = project = None
         try:
             store = MemoryStore(self.database, self.patient_id, "doctor", self.settings)
             agent = PatientCommunicationAgent(store)
-            if method == "GET" and parts.path == "/api/state":
+            if parts.path.startswith("/api/medical"):
+                from team_memory import MedicalProject
+                project = MedicalProject(store)
+                parameters = parse_qs(parts.query)
+                if method == "GET" and parts.path == "/api/medical":
+                    encounter = parameters.get("encounter_id", [""])[0]
+                    result = {"case": project.state(encounter), "runs": project.list_runs(encounter)}
+                elif method == "GET" and parts.path == "/api/medical/image":
+                    return 200, "image/png", project.image(parameters.get("run_id", [""])[0], parameters.get("image_id", [""])[0])
+                elif method == "POST":
+                    if not headers.get("Content-Type", "").startswith("application/json"):
+                        raise MemoryError("invalid_input", "Content-Type must be application/json")
+                    arguments = json.loads(raw)
+                    operation = {"/api/medical/review": project.review, "/api/medical/publish": project.publish,
+                                 "/api/medical/feedback": project.feedback, "/api/medical/correct": project.correct}.get(parts.path)
+                    if operation is None:
+                        return 404, "application/json", b'{"error":"not_found"}'
+                    result = operation(**arguments)
+                else:
+                    return 404, "application/json", b'{"error":"not_found"}'
+            elif method == "GET" and parts.path == "/api/state":
                 parameters = parse_qs(parts.query)
                 encounter = parameters.get("encounter_id", [""])[0]
                 result = {"patient_id": self.patient_id, **agent.case_state({"encounter_id": encounter}),
@@ -65,13 +85,15 @@ class DoctorApplication:
                 return 404, "application/json", b'{"error":"not_found"}'
             return 200, "application/json; charset=utf-8", json.dumps(result, ensure_ascii=False).encode()
         except MemoryError as error:
-            status = 409 if error.code in ("version_conflict", "event_conflict") else 400
+            status = 409 if error.code in ("version_conflict", "event_conflict", "stale_revision", "feedback_conflict") else 400
             return status, "application/json", json.dumps({"error": error.code, "message": str(error)}, ensure_ascii=False).encode()
         except (ValueError, TypeError):
             return 400, "application/json", b'{"error":"invalid_json"}'
         except (sqlite3.Error, OSError):
             return 500, "application/json", b'{"error":"storage_failure"}'
         finally:
+            if project is not None:
+                project.close()
             if store is not None:
                 store.close()
 
@@ -95,7 +117,7 @@ def make_handler(application):
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'")
             self.end_headers()
             self.wfile.write(body)
 

@@ -92,13 +92,15 @@ async function main() {
     [plan.python, ['integrations/oral-memory/check_core.py']],
   ]
   if (plan.action === 'check') {
-    checks.push([plan.python, ['--version']])
+    checks.push([plan.python, ['-c', 'import PIL; print("Image runtime: Pillow " + PIL.__version__)']])
   } else {
     checks.push(
       [plan.python, ['-m', 'unittest', 'discover', '-s', 'integrations/oral-memory/tests', '-v']],
       [process.execPath, ['--import', 'tsx/esm', 'integrations/oral-memory/tests/dsh-smoke.mjs']],
       [process.execPath, ['integrations/oral-memory/tests/doctor-dom-smoke.mjs']],
+      [process.execPath, ['integrations/oral-memory/tests/doctor-team-dom-smoke.mjs']],
       [process.execPath, ['--import', 'tsx/esm', 'integrations/oral-memory/tests/patient-preset-smoke.mjs']],
+      [process.execPath, ['node_modules/vitest/vitest.mjs', 'run', '--config', 'config/vitest.config.ts', 'integrations/oral-memory/tests/harness-team.spec.ts']],
     )
   }
   for (const [command, commandArgs] of checks) {

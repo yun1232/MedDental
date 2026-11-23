@@ -1,3 +1,5 @@
+> 新增：冻结模型的五角色医疗协作、原图与问题贯通、Key1/Key2 两轮病例召回、区域裁剪/掩码复核、医生确认与共享病例效用反馈。完整实现与启动说明见 [五角色医疗框架](integrations/oral-memory/TEAM.zh.md)。
+
 > 当前医疗精简版：累计移除 78 个无关包，保留 Web 问诊入口。最新删除范围与验证结果见 [PRUNING.zh.md](PRUNING.zh.md)，启动方法见 [REFINEMENT.zh.md](REFINEMENT.zh.md)。
 
 # MedDental
@@ -18,10 +20,11 @@
 
 ## 启动
 
-需要 Node >=24.9、项目固定版本 pnpm、Python >=3.10、Node 开发头文件和 C 编译器。模型和 API 凭据继续使用原框架配置。
+需要 Node >=24.9、项目固定版本 pnpm、Python >=3.10、Node 开发头文件和 C 编译器。模型和 API 凭据继续使用原框架配置；五角色图像评估需选择已声明图像输入能力的模型。
 
 ```sh
 pnpm install --frozen-lockfile
+python3 -m pip install -r integrations/oral-memory/requirements.txt
 cp .env.oral.example .env.oral
 ```
 
@@ -46,4 +49,4 @@ pnpm test:framework
 
 业务实现见 [`integrations/oral-memory`](integrations/oral-memory/README.zh.md)，配置见 [`oral-patient.cordis.yml`](apps/cli/config/examples/mcp-memory/oral-patient.cordis.yml)，启动器见 [`scripts/oral-project.mjs`](scripts/oral-project.mjs)。agent-loop、会话格式、SDK 协议和沙箱逻辑保留原实现。
 
-业务检查已通过。完整构建受当前环境的 IPC 权限、Node 开发头文件缺失和无 Git 元数据阻塞；两项上游 HTTP 协商测试在原始代码上也失败。尚未验证真实模型问询和临床效果。交付的是源码，未包含预构建产物。详情见[验证记录](integrations/oral-memory/VERIFICATION.txt)。
+完整构建、患者 Web 启动、五角色 Harness 链路及医生发布/跨患者召回检查已通过。两项上游 HTTP 协商测试仍与原始代码一样失败，其余 309 项框架定向检查通过。角色链路使用模拟外部模型；尚未验证真实模型的诊断效果。交付的是源码，未包含预构建产物。详情见[验证记录](integrations/oral-memory/VERIFICATION.txt)。

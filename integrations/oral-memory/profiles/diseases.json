@@ -1,0 +1,16 @@
+{
+  "oral-leukoplakia": {
+    "name": "口腔白斑及相关口腔黏膜病变",
+    "phenotype_fields": ["site", "side", "color", "morphology", "surface", "border", "extent"],
+    "history_fields": ["duration", "symptoms", "smoking", "alcohol", "local_irritation", "prior_treatment", "pathology"],
+    "visual_limits": "口内照片只能支持可见表征。不能从照片确认病理、不典型增生、恶变、触诊硬度或可擦除性。",
+    "red_flags": ["持续溃疡", "快速变化", "明显出血", "患者报告硬结", "吞咽或呼吸困难"]
+  },
+  "general-medical": {
+    "name": "通用医学辅助评估",
+    "phenotype_fields": ["anatomical_site", "appearance", "distribution", "extent"],
+    "history_fields": ["duration", "symptoms", "prior_diagnosis", "examinations", "treatment", "outcome"],
+    "visual_limits": "区分可见观察、患者陈述、报告与医生确认。图像不能替代必要的体检和检查。",
+    "red_flags": ["急剧恶化", "呼吸困难", "意识改变", "大量出血"]
+  }
+}

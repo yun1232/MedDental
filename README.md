@@ -4,7 +4,9 @@
 
 Project configuration is centralized in [`config/`](config/README.md). Use `pnpm vitest run ...` for selected tests; the root `tsconfig.json` remains the automatic discovery entry.
 
-Oral leukoplakia memory and progressive patient interviewing on DeepSeek Harness.
+Image-aware, case-memory medical collaboration on DeepSeek Harness. Five frozen-model roles collect information, rank prior cases, inspect images, reason and audit; doctor-approved experiences form a shared case library.
+
+Implementation and usage: [五角色医疗框架](integrations/oral-memory/TEAM.zh.md).
 
 [中文](README.zh.md) · [Refinement guide](REFINEMENT.zh.md) · [MIT license](LICENSE)
 
@@ -18,10 +20,11 @@ Requirements: Node >=24.9, the pinned pnpm version, Python >=3.10, Node developm
 
 ```sh
 pnpm install --frozen-lockfile
+python3 -m pip install -r integrations/oral-memory/requirements.txt
 cp .env.oral.example .env.oral
 ```
 
-Edit `.env.oral` to set the patient, encounter, database and doctor credential. Configure the model using the existing Harness provider mechanism. If extracting a ZIP without Git metadata, first initialize Git and create a local commit; the upstream build embeds the commit hash. The [project guide](REFINEMENT.zh.md) includes the steps.
+Edit `.env.oral` to set the patient, encounter, database and doctor credential. Configure an image-capable model using the existing Harness provider mechanism; all five roles receive original images and questions. If extracting a ZIP without Git metadata, first initialize Git and create a local commit; the upstream build embeds the commit hash. The [project guide](REFINEMENT.zh.md) includes the steps.
 
 ```sh
 pnpm build
@@ -42,4 +45,4 @@ pnpm test:framework
 
 Business code: [`integrations/oral-memory`](integrations/oral-memory/README.md). Composition: [`oral-patient.cordis.yml`](apps/cli/config/examples/mcp-memory/oral-patient.cordis.yml). Launcher: [`scripts/oral-project.mjs`](scripts/oral-project.mjs). The original loop, session format, SDK protocols and sandbox implementations are preserved.
 
-The business integration checks pass. Full builds were blocked by IPC restrictions, missing Node development headers and absent Git metadata. Two upstream HTTP negotiation tests fail identically in the original source. No live model interview or clinical evaluation was performed. This package contains source, not prebuilt application artifacts. See [verification](integrations/oral-memory/VERIFICATION.txt).
+The retained application builds successfully with Node development headers. Medical tests cover private/shared isolation, second-key retrieval, grounded visual views, doctor publication and feedback, plus real Harness role execution with a scripted external model. Two upstream HTTP negotiation tests fail identically in the original source. No live model interview or clinical evaluation was performed. This package contains source, not prebuilt application artifacts. See [verification](integrations/oral-memory/VERIFICATION.txt).

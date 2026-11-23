@@ -19,7 +19,7 @@ const overlay = yaml.load(readFileSync(resolve(root, 'apps/cli/config/examples/m
 const registry = overlay.find(row => row.id === 'agent-preset-registry')
 const preset = overlay.flatMap(row => row.insert ?? []).find(row => row.id === 'preset-oral-patient')
 assert.equal(registry.config.default, preset.config.id)
-assert.deepEqual(preset.config.plugins.map(row => row.id), ['persona', 'tool-fs', 'tool-web', 'tool-bash', 'tool-pwsh', 'tool-jobs', 'tool-present', 'compaction'])
+assert.deepEqual(preset.config.plugins.map(row => row.id), ['persona', 'medical-team', 'tool-fs', 'tool-web', 'tool-bash', 'tool-pwsh', 'tool-jobs', 'tool-present', 'compaction'])
 const persona = preset.config.plugins.find(row => row.id === 'persona')
 assert.equal(persona.config.complete, false)
 const ctx = new Context()

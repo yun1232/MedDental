@@ -59,3 +59,5 @@ pnpm exec tsdown --config config/tsdown.config.ts --config-loader native
 冻结锁文件安装、7 阶段完整构建、241 项相关测试、39 项医疗业务测试、MCP/患者预设/医生表单检查、真实 Web 启动和路径别名检查通过。测试覆盖根 solution 的源码解析、两套编译面的根目录、外部工作区配置、开发监听、覆盖率分片及源码子进程启动路径。
 
 此记录仅说明本次迁移的验证范围，不代表全部历史上游测试或真实模型问诊已完成验证。
+
+常规测试直接从 `tsconfig.base.json` 建立源码别名，覆盖 `integrations/` 下不属于 pnpm 包的业务测试；不会依赖根 solution 的空 `files` 列表做发现。

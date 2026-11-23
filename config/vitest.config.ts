@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import tsconfigPaths from 'vite-tsconfig-paths'
+import ts from 'typescript'
 import { resolvePwshPath } from '../packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
@@ -15,11 +15,14 @@ import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from '../scripts/paral
 // require()s custom reporters (which is also why the reporter is CJS).
 const uncoveredLocationsReporter = fileURLToPath(new URL('../scripts/coverage-uncovered-locations.cjs', import.meta.url))
 
-// Resolution facade shared by every plugin instance below: tsconfig.base.json
-// has no include, which vite-tsconfig-paths treats as match-all, so its paths
-// map applies to every test file. paths must win over package exports so built
-// lib/ never loads a second module-singleton copy.
-const pathsPlugin = (): ReturnType<typeof tsconfigPaths> => tsconfigPaths({ projects: [new URL('./tsconfig.base.json', import.meta.url).pathname] })
+// Resolve workspace source uniformly, including integration tests outside a package tsconfig.
+// The root solution has files:[], so discovery-based path plugins skip those importers.
+const pathConfig = ts.readConfigFile(fileURLToPath(new URL('./tsconfig.base.json', import.meta.url)), ts.sys.readFile)
+if (pathConfig.error) throw new Error('Cannot read workspace test path aliases')
+const workspaceAliases = Object.entries(pathConfig.config.compilerOptions.paths as Record<string, string[]>).map(([name, targets]) => ({
+  find: new RegExp('^' + name.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('(.*)') + '$'),
+  replacement: fileURLToPath(new URL(targets[0]!, import.meta.url)).replace('*', '$1'),
+}))
 
 const windowsUnsupportedPackages = process.platform === 'win32'
   ? [
@@ -134,6 +137,7 @@ const pwshCoverageExclusions = spawnSync(resolvePwshPath(), ['-NoLogo', '-NoProf
     ]
 
 const testIncludes = [
+  'integrations/oral-memory/tests/**/*.spec.ts',
   'packages/*/*/tests/**/*.spec.{ts,tsx}',
   'apps/*/tests/**/*.spec.{ts,tsx}',
   'scripts/**/*.spec.ts',
@@ -203,8 +207,8 @@ const testingAliases = { ...claudeCodeTestingAliases, ...generatedRemoteAliases 
 
 export default defineConfig({
   root: fileURLToPath(new URL('../', import.meta.url)),
-  plugins: [pathsPlugin(), standardDecoratorPlugin()],
-  resolve: { alias: testingAliases },
+  plugins: [standardDecoratorPlugin()],
+  resolve: { alias: [...Object.entries(testingAliases).map(([find, replacement]) => ({ find, replacement })), ...workspaceAliases] },
   test: {
     ...localWorkerBudget,
     setupFiles: [
@@ -217,8 +221,8 @@ export default defineConfig({
     // Node stability; process-bound suites stay separate for inventory control.
     projects: [
       {
-        plugins: [pathsPlugin(), standardDecoratorPlugin()],
-        resolve: { alias: testingAliases },
+        plugins: [standardDecoratorPlugin()],
+        resolve: { alias: [...Object.entries(testingAliases).map(([find, replacement]) => ({ find, replacement })), ...workspaceAliases] },
         test: {
           name: 'thread-safe',
           execArgv: vitestExecArgv,
@@ -239,8 +243,8 @@ export default defineConfig({
         },
       },
       {
-        plugins: [pathsPlugin(), standardDecoratorPlugin()],
-        resolve: { alias: testingAliases },
+        plugins: [standardDecoratorPlugin()],
+        resolve: { alias: [...Object.entries(testingAliases).map(([find, replacement]) => ({ find, replacement })), ...workspaceAliases] },
         test: {
           name: 'process-bound',
           // Runner import tests require VM modules; the missing-flag test stays in thread-safe.

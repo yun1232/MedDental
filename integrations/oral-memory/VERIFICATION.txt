@@ -1,3 +1,34 @@
+MedDental 五角色多模态医疗框架验证，2026-11-23
+基线：GitHub main fedf47e35a4bf73b404c479ca70492192ea96879。
+本次不训练模型，新增业务位于 integrations/oral-memory；未更改核心 AgentLoop、vendor 或 native 实现。
+
+通过：
+- pnpm install --frozen-lockfile（锁文件未修改）
+- pnpm build：7/7 构建阶段通过，含原生组件、Host/Client 编译与打包、Web 构建。
+  环境缺 Node 开发头文件，使用独立的 Node-API headers 与同版本 Node 运行构建；未改写构建门禁。
+- pnpm test:oral：3 项启动测试；57 项 Python 测试；5 项真实 Harness 团队集成测试。
+  原有 MCP 工具发现/读写/问询/卸载、医生表单 DOM/HTTP、患者 persona 检查通过。
+  新医生团队页面实际完成认证图片读取、医生确认、发布脱敏副本和另一患者召回。
+  团队测试运行真实 Loader、预设、AgentLoop、spawn、附件和 Python 存储，仅模拟外部模型；
+  覆盖所有五角色原图/原问题输入、历史病例图像、区域 crop/mask、Key2、患者返回、视觉返回、
+  有界推理修订、纯文本模型拒绝及预设卸载。子角色只暴露 structured_output。
+- pnpm test:medical-web：真实患者 Web 启动、令牌换取会话及实际前端响应通过，无模型调用。
+- pnpm vitest run scripts/repository-config.spec.ts：2 项配置路径回归通过。
+- Python/JavaScript 语法、git diff --check、更新后的源码哈希清单通过。
+
+框架定向回归：
+- pnpm test:framework：309 通过、2 失败；与旧验证中已复现的两项 HTTP 探测问题一致。
+  credentials.spec.ts：probes with expanded HTTP credentials without calling any tool。
+  negotiation-lifecycle.spec.ts：retries failed HTTP probes without waiting for a Client close event。
+  未删除、跳过或改写这两项测试来获得通过结果。
+
+范围：测试病例与图像为合成数据；没有使用真实患者、真实模型服务或进行临床效果验证。
+当前候选索引为词元匹配；图像比较由多模态角色执行，没有宣称实现视觉 embedding 检索。
+共享病例由医生整理，并确认文本/图像脱敏与跨患者复用授权；不会自动发布患者原文。
+源码交付，不提交患者数据库、病例图像、模型凭据或预构建产物。
+
+--- 以下为保留的历史验证记录，相关构建阻塞已在本轮解决 ---
+
 MedDental 精简版验证记录，2026-11-20
 基线：deepseek-harness-oral-memory.zip 当前版本 2。
 

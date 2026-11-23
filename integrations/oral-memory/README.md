@@ -1,3 +1,5 @@
+> 新增多模态团队入口与共享病例经验，见 [TEAM.zh.md](TEAM.zh.md)。下文四类记忆描述的是保留的患者私有 MCP 接口；新增图片、共享检索和五角色运行由团队模块提供。
+
 ---
 description: "Reference for configuring and using patient-bound oral leukoplakia memory through the existing DSH MCP client."
 ---
@@ -10,7 +12,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This integration saves lesion descriptions, oral experiences, care events, and doctor notes in four independent SQLite tables. It recalls lesion descriptions first and orders candidates by phenotype relevance, then associated care relevance. It stores no image bytes or image embeddings and uses no external embedding service. The current matcher uses explicit fields and lexical token coverage.
+This integration saves lesion descriptions, oral experiences, care events, and doctor notes in four independent SQLite tables. It recalls lesion descriptions first and orders candidates by phenotype relevance, then associated care relevance. The four legacy record tables store no image bytes or image embeddings and uses no external embedding service. The current matcher uses explicit fields and lexical token coverage.
 
 ## Contents
 
