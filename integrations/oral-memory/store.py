@@ -31,6 +31,7 @@ def settings_from_env(env):
             raise ValueError("weights must be finite and positive")
         result = {
             "weights": resolved,
+            "case_driven": env.get("ORAL_MEMORY_CASE_DRIVEN", "0") == "1",
             "min_phenotype_score": float(env.get("ORAL_MEMORY_MIN_PHENOTYPE_SCORE", "0.2")),
             "recall_limit": int(env.get("ORAL_MEMORY_RECALL_LIMIT", "100")),
             "per_category_limit": int(env.get("ORAL_MEMORY_PER_CATEGORY_LIMIT", "10")),

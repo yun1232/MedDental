@@ -21,7 +21,8 @@ def main():
         op, args = request["op"], request.get("args", {})
         operations = {"state": project.state, "ingest": project.ingest, "context": project.context,
                       "save_output": project.save_output, "retrieve": project.retrieve,
-                      "make_views": project.make_views, "finish": project.finish}
+                      "make_views": project.make_views, "finish": project.finish,
+                      "control": project.control, "save_baseline": project.save_baseline}
         if op == "image":
             value = {"data": base64.b64encode(project.image(**args)).decode(), "media_type": "image/png"}
         elif op in operations:

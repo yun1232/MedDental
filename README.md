@@ -1,3 +1,5 @@
+> 最新功能：患者交流 Agent 根据检索病例控制追问和流程；两阶段独立价值、独立视觉基线、候选去重与医生纠错经验。完整说明见 [功能与业务流程](integrations/oral-memory/TEAM.zh.md)。
+
 > 当前医疗精简版：累计移除 78 个无关包，保留 Web 问诊入口。最新删除范围与验证结果见 [PRUNING.zh.md](PRUNING.zh.md)，启动方法见 [REFINEMENT.zh.md](REFINEMENT.zh.md)。
 
 # MedDental
@@ -12,7 +14,7 @@ Implementation and usage: [五角色医疗框架](integrations/oral-memory/TEAM.
 
 This distribution preserves the Harness runtime, Cordis vendor sources, native capabilities, dependency patches and application entry points. Oral business behavior uses the existing MCP client and a patient-specific agent preset.
 
-Three business memory categories hold lesion descriptions, unified patient experiences (oral and care events), and doctor feedback. Visual-stage retrieval uses patient experience only; diagnostic-stage retrieval adds lesion descriptors. Legacy record references remain valid. Original memory records now carry versioned image evidence. The team initially retrieves through phase-specific patient-experience and phenotype policies, then ranks by temporary model score times iteration decay and selects Top-K. Decay starts at 1 and drops by 0.1 per ineffective-use verdict; Key2 merges and rescores candidates. Records are retained. The interview asks one main question at a time, handles missing or conflicting information and prioritizes doctor follow-ups. A local doctor form supplies corrections, questions and review decisions.
+The patient communication agent controls case-grounded questions and bounded workflow routing. Stage 1 retrieves by patient experience for visual reference; stage 2 merges and reranks cases using lesion descriptors plus experience. Each stage uses its own persistent value multiplier. Visual value depends on doctor-confirmed new evidence from a case-guided mask location; diagnostic value depends on confirmed task success. Visual inspection starts with a blinded original-image baseline. Candidate diversity reduces redundant references. Doctor-confirmed correction lessons can be recalled under explicit patient/shared boundaries. Records and prior versions are retained.
 
 ## Start
 

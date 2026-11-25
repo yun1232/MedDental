@@ -53,7 +53,7 @@ class DoctorApplication:
                 parameters = parse_qs(parts.query)
                 if method == "GET" and parts.path == "/api/medical":
                     encounter = parameters.get("encounter_id", [""])[0]
-                    result = {"case": project.state(encounter), "runs": project.list_runs(encounter)}
+                    result = {"case": project.state(encounter), "runs": project.list_runs(encounter), "lessons": project.lessons(project.state(encounter)["question"])}
                 elif method == "GET" and parts.path == "/api/medical/image":
                     return 200, "image/png", project.image(parameters.get("run_id", [""])[0], parameters.get("image_id", [""])[0])
                 elif method == "POST":
@@ -61,7 +61,8 @@ class DoctorApplication:
                         raise MemoryError("invalid_input", "Content-Type must be application/json")
                     arguments = json.loads(raw)
                     operation = {"/api/medical/review": project.review, "/api/medical/publish": project.publish,
-                                 "/api/medical/feedback": project.feedback, "/api/medical/correct": project.correct}.get(parts.path)
+                                 "/api/medical/feedback": project.feedback, "/api/medical/stage-feedback": project.stage_feedback,
+                                 "/api/medical/outcome": project.outcome, "/api/medical/lesson": project.lesson_submit, "/api/medical/correct": project.correct}.get(parts.path)
                     if operation is None:
                         return 404, "application/json", b'{"error":"not_found"}'
                     result = operation(**arguments)

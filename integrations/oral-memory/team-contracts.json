@@ -368,6 +368,29 @@
               },
               "maxItems": 100,
               "uniqueItems": true
+            },
+            "source_cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "case_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 12000
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "case_id",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12
             }
           },
           "required": [
@@ -399,6 +422,41 @@
         },
         "maxItems": 100,
         "uniqueItems": true
+      },
+      "contributions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "view_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "finding_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            }
+          },
+          "required": [
+            "case_id",
+            "version",
+            "view_id",
+            "finding_id"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 30
       }
     },
     "required": [
@@ -560,6 +618,53 @@
         "type": "string",
         "minLength": 0,
         "maxLength": 12000
+      },
+      "lesson_drafts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "condition": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "mistake": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "correction": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "ask",
+                "visual",
+                "retrieve",
+                "reasoning",
+                "review"
+              ]
+            },
+            "limits": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            }
+          },
+          "required": [
+            "condition",
+            "mistake",
+            "correction",
+            "action",
+            "limits"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 5
       }
     },
     "required": [

@@ -117,6 +117,9 @@ PATIENT_TURN = obj({
         "sufficient": {"type": "boolean"}, "source_ref": text()},
         ("record_id", "version", "answer", "sufficient", "source_ref")), "maxItems": 10},
 }, ("encounter_id", "event_id", "expected_revision", "message", "intent", "observations", "writes", "doctor_answers"))
+PATIENT_DECIDE = obj({"encounter_id": text(), "event_id": text(), "expected_revision": {"type": "integer", "minimum": 0},
+    "retrieval_id": text(), "question": text(), "field": text(), "case_refs": {"type": "array", "items": REFERENCE, "maxItems": 12}},
+    ("encounter_id", "event_id", "expected_revision", "retrieval_id", "question", "field", "case_refs"))
 DOCTOR_SUBMIT = obj({
     "encounter_id": text(), "event_id": text(), "expected_revision": {"type": "integer", "minimum": 0},
     "confirmed": {"type": "boolean"}, "note": RECORDS["doctor"],
@@ -187,6 +190,7 @@ def tools(role):
         {"name": "put_patient_experience", "description": "Persist one unified patient experience: oral symptoms/habits or care/examination/treatment/follow-up. event_kind selects the subtype; source, versions and original feedback references are preserved.", "inputSchema": PATIENT_EXPERIENCE_WRITE},
         {"name": "get_patient_experience", "description": "Read one unified patient experience using its stable storage_reference; oral/care records remain one business category.", "inputSchema": PATIENT_EXPERIENCE_GET},
         {"name": "case_state", "description": "Read persistent inquiry fields, pending questions and case revision.", "inputSchema": CASE},
+        {"name": "patient_decide", "description": "Patient communication agent persists one question grounded in retrieved cases, with receipt references and exact case revision. Use after patient_turn returns decide_from_cases.", "inputSchema": PATIENT_DECIDE},
         {"name": "patient_turn", "description": "Commit extracted patient information and memory writes atomically; return one next question with memory context. Use event_id for retry and the current case revision.", "inputSchema": PATIENT_TURN},
         {"name": "memory_feedback", "description": "Record actual use of a delivered memory reference. Patient callers may report used only; doctor feedback controls utility. Scores are never supplied by the model.", "inputSchema": FEEDBACK},
         {"name": "retrieve", "description": (

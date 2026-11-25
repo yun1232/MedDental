@@ -11,7 +11,7 @@
     return result;
   }
   const selected = () => loaded?.runs.find(r => r.run_id === el('medical-run').value);
-  const latest = (r, role) => [...r.outputs].reverse().find(o => o.role === role)?.value;
+  const latest = (r, role) => [...(r?.outputs || [])].reverse().find(o => o.role === role)?.value;
   async function load() {
     const encounter = el('encounter').value;
     loaded = await api('/api/medical?encounter_id=' + encodeURIComponent(encounter));
@@ -36,6 +36,8 @@
       const lines = role === 'patient' ? [value.summary, '待补充：' + value.missing.join('；'), value.next_question] : role === 'visual' ? [...value.findings.map(f => f.description + '（' + (f.certainty === 'clear' ? '清晰' : '不确定') + '）'), ...value.quality_issues] : role === 'reasoning' ? [value.summary, ...value.hypotheses.map(h => h.name + '；尚缺：' + h.missing.join('、')), ...value.next_steps, ...value.uncertainties] : ['流转：' + ({approve:'等待医生',patient:'患者补充',visual:'视觉复核',retrieval:'补充病例',reasoning:'修改评估',human:'人工核查'}[value.route] || value.route), ...value.issues, value.required_changes];
       for (const line of lines.filter(Boolean)) { const p = document.createElement('p'); p.textContent = line; clinical.append(p); }
     }
+    const control = run.controls?.at(-1)?.value;
+    if (control) { const p = document.createElement('p'); p.textContent = '患者交流 Agent 流程决定：' + control.action + '；' + control.reason + (control.question ? '；下一问题：' + control.question : ''); clinical.append(p); }
     el('medical-readable').append(clinical);
     const images = run.input.images.map(i => ({ id: i.image_id, label: '患者原图 ' + i.image_id }));
     images.push(...run.views.map(v => ({ id: v.asset_id, label: v.kind + ' · ' + v.description })));
@@ -55,18 +57,33 @@
     }
     // Only a blank redacted template is supplied: original patient text is never auto-published.
     el('medical-case').textContent = '填写病例并确认发布时，这里显示医生整理的结构化病例。';
-    const cases = new Map(run.retrievals.flatMap(r => r.cases).map(c => [c.case_id + ':' + c.version, c]));
-    for (const c of cases.values()) {
-      const row = document.createElement('div'), label = document.createElement('p');
-      const reranked = [...(run.rerankings || [])].reverse().flatMap(r => r.ranking).find(r => r.case_id === c.case_id && r.version === c.version);
-      label.textContent = c.case_id + ' · v' + c.version + ' · 患者经历匹配 ' + (c.patient_experience_score ?? c.history_score ?? 0).toFixed(2) + ' · 白斑匹配 ' + (c.retrieval_channels?.includes('lesion') ? c.phenotype_score.toFixed(2) : '未用于视觉初排') + ' · 模型重排分 ' + (reranked ? reranked.relevance : '未推荐') + ' · 迭代分 ' + (Number.isFinite(reranked?.decay_score ?? c.decay_score) ? (reranked?.decay_score ?? c.decay_score).toFixed(2) : '旧轮次未记录') + ' · 最终分 ' + (Number.isFinite(reranked?.final_score) ? reranked.final_score.toFixed(2) : '未打分');
-      row.append(label);
-      for (const [kind, text] of [['helpful', '医生确认本例有参考价值'], ['not_helpful', '医生确认本例无参考价值']]) {
-        const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
-        button.onclick = () => action(async () => { const reason = el('medical-note').value.trim(); if (!reason) throw new Error('请填写反馈依据。'); await api('/api/medical/feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version, kind, reason }); notice('反馈已记录，同一病例版本在本轮仅计分一次。'); });
-        row.append(button);
+    if (el('lesson-results')) el('lesson-results').textContent = JSON.stringify(loaded.lessons || [], null, 2);
+    if (el('medical-success')) el('medical-success').value = run.doctor_review?.success === true ? 'true' : run.doctor_review?.success === false ? 'false' : '';
+    for (const [key, stage, title] of [['key1', 'visual', '第一阶段 区域带来新信息'], ['key2', 'diagnosis', '第二阶段 评估成功与否']]) {
+      const ranking = [...(run.rerankings || [])].reverse().find(r => r.key === key);
+      if (!ranking) continue;
+      for (const c of ranking.selected) {
+        const row = document.createElement('div'), label = document.createElement('p');
+        label.textContent = title + ' · ' + c.case_id + ' · M=' + c.model_score + ' · D=' + c.decay_score + ' · F=' + c.final_score;
+        row.append(label);
+        const gains = (run.visual_gains || []).filter(g => g.case_id === c.case_id && g.version === c.version);
+        const checks = gains.map(g => {
+          const line = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox';
+          line.append(check, document.createTextNode('确认新增信息：' + g.description)); row.append(line); return [check, g.finding_id];
+        });
+        for (const successful of [true, false]) {
+          const button = document.createElement('button'); button.type = 'button';
+          button.textContent = stage === 'visual' ? successful ? '确认区域带来新信息' : '确认区域未带来新信息' : successful ? '按成功评价' : '按失败评价';
+          button.onclick = () => action(async () => {
+            const reason = el('medical-note').value.trim(); if (!reason) throw new Error('请填写复核说明。');
+            await api('/api/medical/stage-feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version, stage, successful, reason,
+              finding_ids: checks.filter(([check]) => check.checked).map(([, id]) => id) });
+            notice('已保存本阶段反馈，另一阶段分数保持不变。');
+          });
+          row.append(button);
+        }
+        el('medical-feedback').append(row);
       }
-      el('medical-feedback').append(row);
     }
     const recommendation = run.rerankings?.at(-1) || latest(run, 'retrieval');
     if (recommendation) { const pre = document.createElement('pre'); pre.textContent = JSON.stringify(recommendation, null, 2); el('medical-feedback').prepend(pre); }
@@ -76,9 +93,36 @@
   el('medical-run').onchange = () => action(render);
   el('medical-review-form').onsubmit = event => { event.preventDefault(); action(async () => {
     const run = selected(); if (!run || !el('medical-confirmed').checked) throw new Error('请先选择评估并确认。');
-    await api('/api/medical/review', { run_id: run.run_id, expected_revision: loaded.case.revision, confirmed: true, note: el('medical-note').value, outcome: el('medical-outcome').value });
-    await load(); notice('医生复核已保存；尚未发布到共享病例库。');
+    if (run.status === 'doctor_reviewed') {
+      if (!['true', 'false'].includes(el('medical-success').value)) throw new Error('请选择要补充确认的成功或失败结果。');
+      await api('/api/medical/outcome', { run_id: run.run_id, expected_revision: loaded.case.revision, confirmed: true,
+        successful: el('medical-success').value === 'true', note: el('medical-note').value });
+    } else {
+      await api('/api/medical/review', { run_id: run.run_id, expected_revision: loaded.case.revision, confirmed: true, note: el('medical-note').value, outcome: el('medical-outcome').value, success: el('medical-success')?.value === 'true' ? true : el('medical-success')?.value === 'false' ? false : null });
+    }
+    const success = el('medical-success')?.value;
+    if (success === 'true' || success === 'false') {
+      const references = [...(run.rerankings || [])].reverse().find(r => r.key === 'key2')?.selected || [];
+      for (const c of references) await api('/api/medical/stage-feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version,
+        stage: 'diagnosis', successful: success === 'true', reason: el('medical-note').value });
+    }
+    await load(); notice('医生复核已保存；已判定结果独立更新第二阶段，未知结果不扣分。');
   }); };
+  el('lesson-draft').onclick = () => action(async () => {
+    const draft = latest(selected(), 'review')?.lesson_drafts?.[0];
+    if (!draft) throw new Error('当前没有经验草稿，请医生直接填写。');
+    for (const key of ['condition', 'mistake', 'correction', 'action', 'limits']) el('lesson-' + key).value = draft[key];
+    el('lesson-confirmed').checked = false; el('lesson-shared').checked = false;
+    notice('已载入未确认草稿，请医生修改适用条件和边界后确认。');
+  });
+  el('lesson-save').onclick = () => action(async () => {
+    const run = selected(); if (!run) throw new Error('请选择来源评估。');
+    const result = await api('/api/medical/lesson', { run_id: run.run_id, lesson_id: el('lesson-id').value,
+      expected_version: Number(el('lesson-version').value), confirmed: el('lesson-confirmed').checked, shared: el('lesson-shared').checked, deidentified: el('lesson-shared').checked,
+      lesson: { condition: el('lesson-condition').value, mistake: el('lesson-mistake').value,
+        correction: el('lesson-correction').value, action: el('lesson-action').value, limits: el('lesson-limits').value } });
+    el('lesson-version').value = result.version; await load(); notice('医生确认经验已保存，可按适用条件召回。');
+  });
   el('medical-correct').onclick = () => action(async () => {
     if (!loaded) throw new Error('请先读取评估。');
     await api('/api/medical/correct', { encounter_id: el('encounter').value, expected_revision: loaded.case.revision, event_id: crypto.randomUUID(), note: el('medical-correction').value });

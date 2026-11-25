@@ -8,7 +8,15 @@ def array(item, maximum=20):
 
 UNIT = {"type": "integer", "minimum": 0, "maximum": 1000}
 BOX = array(UNIT, 4)  # additionally require exactly four ordered coordinates
-REGION = obj({"image_id": text(), "box": BOX, "description": text(), "basis": strings()},
+CASE_REF = obj({"case_id": text(), "version": {"type": "integer", "minimum": 1}}, ("case_id", "version"))
+CONTROL = obj({"action": choice("ask", "visual", "retrieve", "reasoning", "finish", "human"),
+    "question": text(empty=True), "reason": text(), "gaps": array(obj({"field": text(), "why": text(),
+    "case_refs": array(CASE_REF, 12)}, ("field", "why", "case_refs")), 10)}, ("action", "question", "reason", "gaps"))
+LESSON = obj({"condition": text(), "mistake": text(), "correction": text(), "action": choice("ask", "visual", "retrieve", "reasoning", "review"),
+    "limits": text()}, ("condition", "mistake", "correction", "action", "limits"))
+CONTRIBUTION = obj({"case_id": text(), "version": {"type": "integer", "minimum": 1}, "view_id": text(), "finding_id": text()},
+    ("case_id", "version", "view_id", "finding_id"))
+REGION = obj({"image_id": text(), "box": BOX, "description": text(), "basis": strings(), "source_cases": array(CASE_REF, 12)},
              ("image_id", "box", "description", "basis"))
 FINDING = obj({"id": text(), "image_id": text(), "description": text(),
                "supporting_views": strings(), "certainty": choice("clear", "uncertain"),
@@ -27,14 +35,14 @@ OUTPUTS = {
     "retrieval": obj({"ranking": array(RANK, 72), "transferable_lessons": strings(), "limitations": strings()},
                      ("ranking", "transferable_lessons", "limitations")),
     "visual": obj({"findings": array(FINDING, 30), "regions": array(REGION, 2),
-                   "quality_issues": strings(), "mask_sensitivity": strings()},
+                   "quality_issues": strings(), "mask_sensitivity": strings(), "contributions": array(CONTRIBUTION, 30)},
                   ("findings", "regions", "quality_issues", "mask_sensitivity")),
     "reasoning": obj({"summary": text(), "hypotheses": array(HYPOTHESIS, 8), "case_refs": array(
         obj({"case_id": text(), "version": {"type": "integer", "minimum": 1}}, ("case_id", "version")), 12),
         "next_steps": strings(), "uncertainties": strings(), "red_flags": strings()},
         ("summary", "hypotheses", "case_refs", "next_steps", "uncertainties", "red_flags")),
     "review": obj({"route": choice("approve", "patient", "visual", "retrieval", "reasoning", "human"),
-                   "issues": strings(), "required_changes": text(empty=True)},
+                   "issues": strings(), "required_changes": text(empty=True), "lesson_drafts": array(LESSON, 5)},
                   ("route", "issues", "required_changes")),
 }
 

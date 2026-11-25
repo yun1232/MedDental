@@ -54,6 +54,12 @@ try {
   el('medical-note').value = '已核对原图及观察依据'; el('medical-outcome').value = '已确认的随访结果'; el('medical-confirmed').checked = true
   el('medical-review-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
   await waitFor(() => el('medical-status').textContent.includes('医生复核已保存'))
+  el('lesson-id').value = 'dom-lesson'; el('lesson-condition').value = '持续三个月';
+  el('lesson-mistake').value = '遗漏检查结果'; el('lesson-correction').value = '先核对既往报告';
+  el('lesson-limits').value = '只作为问询经验，不能直接确认病理'; el('lesson-action').value = 'ask';
+  el('lesson-confirmed').checked = true; el('lesson-shared').checked = true; el('lesson-save').click();
+  await waitFor(() => el('medical-status').textContent.includes('医生确认经验已保存'));
+  assert.equal(el('lesson-version').value, '1');
   el('medical-case-id').value = 'case-dom'; el('publish-phenotype').value = '白色斑块'; el('publish-context').value = '持续三个月'
   el('publish-evidence').value = '医生确认的可见外观'; el('publish-experience').value = '相似外观仍需核对病史与检查'
   el('publish-pitfalls').value = '不能迁移病理结论'; el('publish-outcome').value = '已随访'; el('publish-source').value = 'authorized-synthetic-case'
@@ -65,6 +71,9 @@ try {
   assert.ok(!el('medical-case').textContent.includes('原始患者问题'))
   const transfer = "import sys,json; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory/tests'); from test_team import TeamTests,patient; t=TeamTests(); t.path=Path(sys.argv[1]); t.resources=[]; t.p=t.project('another-patient'); r=t.start(); t.p.save_output(r,'patient',patient()); print(json.dumps(t.p.retrieve(r,'key1'))); [(p.close(),s.close()) for p,s in reversed(t.resources)]"
   const recalled = JSON.parse(execFileSync(python, ['-c', transfer, directory], { cwd: root, encoding: 'utf8' }))
+  const lessons = JSON.parse(execFileSync(python, ['-c', "import sys,json; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory/tests'); from test_team import TeamTests; t=TeamTests(); t.path=Path(sys.argv[1]); t.resources=[]; p=t.project('another-patient'); print(json.dumps(p.lessons('持续三个月'))); [(p.close(),s.close()) for p,s in reversed(t.resources)]", directory], { cwd: root, encoding: 'utf8' }));
+  assert.equal(lessons[0].id, 'dom-lesson');
+  assert.equal(lessons[0].source_run, 'authorized-doctor-lesson');
   assert.equal(recalled.cases[0].case_id, 'case-dom')
   assert.equal(recalled.cases[0].images.length, 1)
   assert.deepEqual(errors, [])

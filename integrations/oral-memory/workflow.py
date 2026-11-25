@@ -101,7 +101,7 @@ class PatientCommunicationAgent:
             tasks = self._open_tasks(arguments["encounter_id"], state)
             return {"encounter_id": arguments["encounter_id"], "revision": revision, "state": state,
                     "questionnaire": self.template,
-                    "open_doctor_questions": tasks, "next_action": self._plan(state, tasks, mark=False)}
+                    "open_doctor_questions": tasks, "next_action": ({"action": "decide_from_cases", "pending_question": state["pending_question"]} if self.store.settings.get("case_driven") else self._plan(state, tasks, mark=False))}
 
     def _cached(self, kind, arguments):
         digest = hashlib.sha256((kind + json.dumps(arguments, sort_keys=True, ensure_ascii=False)).encode()).hexdigest()
@@ -172,7 +172,7 @@ class PatientCommunicationAgent:
             return {"action": "ask", **question}
         pending = state["pending_question"]
         urgent_conflict = any(value["status"] == "conflict" and value["asked_count"] < maximum for value in state["fields"].values())
-        if pending and not pending.get("doctor_key") and not urgent_conflict and state["fields"][pending["field"]]["status"] not in ("known", "denied", "deferred"):
+        if pending and not pending.get("doctor_key") and not urgent_conflict and state["fields"].get(pending["field"], {"status": "unknown"})["status"] not in ("known", "denied", "deferred"):
             return {"action": "await_answer", **pending}
         for priority, statuses in ((2, ("conflict",)), (3, ("unknown", "uncertain"))):
             for field, spec in sorted(self.fields.items(), key=lambda item: not item[1]["required"]):
@@ -259,6 +259,9 @@ class PatientCommunicationAgent:
                 next_action = {"action": "paused"}
             elif arguments["intent"] == "ask_question":
                 next_action = {"action": "answer_patient_first", "patient_question": arguments["message"], "resume": self._plan(state, tasks, False)}
+            elif self.store.settings.get('case_driven'):
+                next_action = {'action': 'decide_from_cases', 'doctor_questions': tasks,
+                    'reason': 'Patient communication agent chooses a missing fact using retrieved cases'}
             else:
                 next_action = self._plan(state, tasks, True)
             response = {"encounter_id": arguments["encounter_id"], "revision": revision+1,
@@ -270,10 +273,43 @@ class PatientCommunicationAgent:
             events = [record for record in self.store.records("patient_experience") if record["encounter_id"] == arguments["encounter_id"]]
             history_query = " ".join(r["description"] + " " + r.get("outcome", "") for r in events)
             response["memory_context"] = self.store.retrieve({"purpose": "visual", "patient_experience_query": history_query,
-                "encounter_id": arguments["encounter_id"], "lesion_query": {"text": "unknown"},
+                **({"exclude_record_ids": [r['record_id'] for category in ('lesion','experience','care','doctor') for r in self.store.records(category) if r['encounter_id'] == arguments['encounter_id']]} if self.store.settings.get('case_driven') else {"encounter_id": arguments["encounter_id"]}), "lesion_query": {"text": "unknown"},
                 "care_query": "", "experience_query": "", "doctor_query": "", "top_k": 5})
             self._save(arguments, state, revision+1, digest, response)
             return response
+
+    def patient_decide(self, arguments):
+        """The patient agent chooses the question after inspecting a retrieval receipt."""
+        from schemas import PATIENT_DECIDE
+        validate(arguments, PATIENT_DECIDE)
+        with self.store.transaction():
+            digest, cached = self._cached("patient_decide", arguments)
+            if cached is not None:
+                return cached
+            revision, state = self._read(arguments['encounter_id'])
+            if revision != arguments['expected_revision']:
+                raise MemoryError('version_conflict', 'Re-read inquiry state')
+            receipt = self.store.db.execute('SELECT refs FROM delivery_packets WHERE patient_id=? AND retrieval_id=?',
+                (self.store.patient_id, arguments['retrieval_id'])).fetchone()
+            if receipt is None or not arguments['case_refs'] or any(r not in json.loads(receipt[0]) for r in arguments['case_refs']):
+                raise MemoryError('invalid_reference', 'Question must cite cases in a delivered receipt')
+            field = arguments['field']
+            if field in state['fields']:
+                value = state['fields'][field]
+                if value['status'] in ('known', 'denied', 'deferred') or value['asked_count'] >= self.store.settings['max_question_attempts']:
+                    raise MemoryError('question_blocked', 'Respect answered, declined and exhausted fields')
+                value['asked_count'] += 1
+            state.setdefault('case_question_attempts', {})
+            attempts = state['case_question_attempts'].get(field, 0)
+            if attempts >= self.store.settings['max_question_attempts']:
+                raise MemoryError('question_blocked', 'Question attempt budget exhausted')
+            state['case_question_attempts'][field] = attempts + 1
+            state['pending_question'] = {'question': arguments['question'], 'field': field,
+                'case_refs': arguments['case_refs'], 'retrieval_id': arguments['retrieval_id']}
+            result = {'encounter_id': arguments['encounter_id'], 'revision': revision+1, 'state': state,
+                'next_action': {'action': 'ask', **state['pending_question']}}
+            self._save(arguments, state, revision+1, digest, result)
+            return result
 
     def doctor_submit(self, arguments):
         """Commit confirmed doctor input, corrected memories and case state together."""

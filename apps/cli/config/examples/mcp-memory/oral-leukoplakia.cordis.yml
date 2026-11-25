@@ -13,6 +13,7 @@
         failOnStartupError: true
         env:
           ORAL_MEMORY_DB: !!js process.env.ORAL_MEMORY_DB?.trim() || process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh', 'oral-memory', 'memory.sqlite3')
+          ORAL_MEMORY_CASE_DRIVEN: '1'
           ORAL_MEMORY_PATIENT_ID: !!js process.env.ORAL_MEMORY_PATIENT_ID?.trim() || ''
           ORAL_MEMORY_ACTOR_ROLE: !!js process.env.ORAL_MEMORY_ACTOR_ROLE?.trim() || 'patient'
           ORAL_MEMORY_ENCOUNTER_ID: !!js process.env.ORAL_MEMORY_ENCOUNTER_ID?.trim() || 'current'

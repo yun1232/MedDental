@@ -126,7 +126,7 @@ class FusionTests(unittest.TestCase):
         history = self.p.run(run)
         self.assertEqual(history['retrievals'][0]['cases'][0]['decay_score'], 1)
         self.assertEqual(history['rerankings'][0]['ranking'][0]['model_score'], 90)
-        self.assertEqual(history['rerankings'][-1]['ranking'][-1]['final_score'], 18)
+        self.assertEqual(history['rerankings'][-1]['ranking'][-1]['final_score'], 20)  # Legacy feedback cannot modify a stage channel after it was seeded.
         self.assertEqual(history['rerankings'][-1]['ranking'][0]['model_score'], 80)
         self.assertEqual(len(history['rerankings'][-1]['selected']),1)
 

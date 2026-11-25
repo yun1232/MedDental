@@ -22,6 +22,7 @@ from case_library import CaseLibrary, record_id as published_record_id
 from store import BUSINESS_CATEGORIES
 from team_schemas import OUTPUTS, check_output, REGION, array
 from workflow import PatientCommunicationAgent
+from clinical_control import ClinicalControlMixin, initialize, stage_value, select_diverse
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 24 * 1024 * 1024
@@ -40,7 +41,7 @@ def fail(code, message):
     raise MemoryError(code, message)
 
 
-class MedicalProject:
+class MedicalProject(ClinicalControlMixin):
     def __init__(self, store, shared_path=None, asset_root=None, profile_path=None, domain=None):
         self.store, self.db = store, store.db
         self.patient, self.role = store.patient_id, store.role
@@ -83,6 +84,8 @@ class MedicalProject:
         ''')
         self.library = CaseLibrary(self.shared_path, self.domain, self.role, self.store.settings)
         self.shared = self.library.db  # compatibility: published headers remain in this database
+        initialize(self.db)
+        initialize(self.shared)
 
     def close(self):
         self.library.close()
@@ -230,6 +233,7 @@ class MedicalProject:
                 "longitudinal": self.inquiry.case_state({"encounter_id": run["encounter_id"]}),
                 "current_memories": {category: [r for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]] for category in BUSINESS_CATEGORIES},
                 "doctor_notes": [r for r in self.store.records("doctor") if r["encounter_id"] == run["encounter_id"]][-10:],
+                "reusable_lessons": self.lessons(" ".join(m["text"] for m in run["input"]["messages"])),
                 "prior_reviews": [{"encounter_id": r["encounter"], "input_revision": r["revision"],
                                    "doctor_review": json.loads(r["payload"])["doctor_review"]}
                                   for r in self.db.execute("SELECT encounter,revision,payload FROM medical_runs WHERE patient=? AND status='doctor_reviewed' ORDER BY rowid DESC LIMIT 10", (self.patient,))]}
@@ -256,11 +260,13 @@ class MedicalProject:
                             "final_score": round(r["relevance"] * by_id[(r["case_id"], r["version"])]["decay_score"], 10)} for r in value["ranking"]]
                 ranking.sort(key=lambda r: (-r["final_score"], -r["model_score"], r["case_id"], r["version"]))
                 scored = {(r["case_id"], r["version"]) for r in ranking}
-                selected = [r for r in ranking if r["final_score"] > 0][:self.top_k]
+                selected, duplicate_cases = select_diverse(ranking, initial["cases"], self.top_k)
                 run.setdefault("rerankings", []).append({"stage": "model_reranking", "retrieval_id": initial["retrieval_id"],
-                    "key": initial["key"], "ranking": ranking, "selected": selected, "top_k": self.top_k,
+                    "key": initial["key"], "diversity_omissions": duplicate_cases, "ranking": ranking, "selected": selected, "top_k": self.top_k,
                     "score_rule": "final_score = temporary_model_score * iteration_decay_score",
                     "unscored": [{"case_id": c["case_id"], "version": c["version"]} for c in initial["cases"] if (c["case_id"], c["version"]) not in scored]})
+            if role == "visual":
+                run["visual_gains"] = self.visual_gains(run, value)
             run["memory_epoch"] = self._memory_epoch()
             self._write_run(run)
             self.db.commit()
@@ -276,6 +282,13 @@ class MedicalProject:
         delivered = {(x["case_id"], x["version"]) for r in run["retrievals"] for x in r["cases"]}
         if role == "visual":
             for region in value["regions"]:
+                selected = {(r["case_id"], r["version"]) for ranking in run.get("rerankings", []) if ranking["key"] == "key1" for r in ranking["selected"]}
+                for source in region.get("source_cases", []):
+                    if (source["case_id"], source["version"]) not in selected:
+                        fail("invalid_reference", "Region source must be a selected visual-stage case")
+                    historical = next(c for r in run["retrievals"] for c in r["cases"] if c["case_id"] == source["case_id"] and c["version"] == source["version"])
+                    if not historical.get("regions"):
+                        fail("invalid_reference", "Case has no historical mask location to transfer semantically")
                 if region["image_id"] not in originals:
                     fail("invalid_evidence", "Regions must be located on a current original image")
             ids = [f["id"] for f in value["findings"]]
@@ -455,7 +468,8 @@ class MedicalProject:
                     cases.append(c)
             for c in cases:
                 target = self.store if c["memory_scope"] == "patient" else self.library
-                c["decay_score"] = target.memory_stats(c["memory_reference"])["decay_score"]
+                c["stage_values"] = {stage: stage_value(target, c["memory_reference"], stage) for stage in ("visual", "diagnosis")}
+                c["decay_score"] = c["stage_values"][arguments["purpose"]]
             response = {"retrieval_id": result["retrieval_id"], "key": key, "query": arguments,
                         "cases": cases, "initial_candidates": [{"case_id": c["case_id"], "version": c["version"]} for c in fresh], "stage": "initial_retrieval", "status": result["status"], "required_context": result["required_context"],
                         "supplementary": result["supplementary"], "source_packets": result["source_packets"],
@@ -464,9 +478,11 @@ class MedicalProject:
                         "ranking": result["ranking"], "algorithm": result["algorithm"] if "algorithm" in result else "original hierarchical memory retrieval"}
             run["retrievals"].append(response)
             self._write_run(run)
+            self.shared.commit()
             self.db.commit()
             return response
         except BaseException:
+            self.shared.rollback()
             self.db.rollback()
             raise
 
@@ -499,7 +515,7 @@ class MedicalProject:
                         view_id = "view-" + digest({"run": run_id, "region": region, "kind": kind})[:24]
                         view = {"view_id": view_id, "image_id": meta["image_id"], "asset_id": asset["image_id"],
                                 "kind": kind, "box": b, "pixel_box": pixels, "description": region["description"],
-                                "basis": region["basis"], "asset": asset}
+                                "basis": region["basis"], "source_cases": region.get("source_cases", []), "asset": asset}
                         if not any(x["view_id"] == view_id for x in run["views"]):
                             if len(run["views"]) >= 12:
                                 fail("view_limit", "Visual view budget exhausted")
@@ -559,11 +575,13 @@ class MedicalProject:
                 "description": description, "related_record_ids": [], "question_status": "not_applicable", "answer": ""}
         self.store.put("doctor", {"record": note, "expected_version": 0})
 
-    def review(self, run_id, expected_revision, confirmed, note, outcome):
+    def review(self, run_id, expected_revision, confirmed, note, outcome, success=None):
         self.doctor()
         validate(expected_revision, {"type": "integer", "minimum": 1})
         validate(note, text())
         validate(outcome, text())
+        if success is not None:
+            validate(success, {"type": "boolean"})
         if confirmed is not True:
             fail("confirmation_required", "Explicit doctor confirmation required")
         self.db.execute("BEGIN IMMEDIATE")
@@ -571,7 +589,7 @@ class MedicalProject:
             run = self.run(run_id)
             if run["revision"] != expected_revision or run["status"] not in ("awaiting_doctor", "needs_input", "needs_human"):
                 fail("version_conflict", "Review a completed current consultation")
-            run["doctor_review"] = {"note": note, "outcome": outcome, "time": int(time.time()), "revision": expected_revision}
+            run["doctor_review"] = {"success": success, "note": note, "outcome": outcome, "time": int(time.time()), "revision": expected_revision}
             run["status"] = "doctor_reviewed"
             self._doctor_memory(run["encounter_id"], "review:" + run_id, note + "；医生确认结果：" + outcome, "supplement")
             run["memory_epoch"] = self._memory_epoch()
@@ -655,7 +673,7 @@ class MedicalProject:
             check_output("visual", {"findings": [], "regions": [region], "quality_issues": [], "mask_sensitivity": []})
             if region["image_id"] not in mapping:
                 fail("invalid_region", "Published regions must belong to the selected images")
-            regions.append({**region, "image_id": mapping[region["image_id"]]})
+            regions.append({**{k: v for k, v in region.items() if k != "source_cases"}, "image_id": mapping[region["image_id"]]})
         value = {k: v for k, v in case.items() if k not in ("image_ids", "regions", "redactions")}
         value.update({"case_id": case_id, "version": expected_version + 1, "domain": self.domain,
                       "images": images, "regions": regions, "review_status": "doctor_confirmed"})
