@@ -28,7 +28,7 @@
     el('medical-feedback').replaceChildren();
     const run = selected();
     if (!run) { el('medical-results').textContent = '患者上传原图并调用 medical_consult 后，这里显示五角色结果。'; return; }
-    el('medical-results').textContent = JSON.stringify({ revision: run.revision, current_revision: loaded.case.revision, status: run.status, outputs: run.outputs, doctor_review: run.doctor_review }, null, 2);
+    el('medical-results').textContent = JSON.stringify({ revision: run.revision, current_revision: loaded.case.revision, status: run.status, outputs: run.outputs, doctor_review: run.doctor_review, case_memory: run.case_memory }, null, 2);
     const clinical = document.createElement('div');
     for (const [role, label] of [['patient','患者资料'],['visual','视觉观察'],['reasoning','综合评估'],['review','独立审查']]) {
       const value = latest(run, role); if (!value) continue;
@@ -36,6 +36,7 @@
       const lines = role === 'patient' ? [value.summary, '待补充：' + value.missing.join('；'), value.next_question] : role === 'visual' ? [...value.findings.map(f => f.description + '（' + (f.certainty === 'clear' ? '清晰' : '不确定') + '）'), ...value.quality_issues] : role === 'reasoning' ? [value.summary, ...value.hypotheses.map(h => h.name + '；尚缺：' + h.missing.join('、')), ...value.next_steps, ...value.uncertainties] : ['流转：' + ({approve:'等待医生',patient:'患者补充',visual:'视觉复核',retrieval:'补充病例',reasoning:'修改评估',human:'人工核查'}[value.route] || value.route), ...value.issues, value.required_changes];
       for (const line of lines.filter(Boolean)) { const p = document.createElement('p'); p.textContent = line; clinical.append(p); }
     }
+    if (run.case_memory) { const p = document.createElement('p'); p.textContent = '医生判断后的病例已存入本人记忆，后续就诊可检索；跨患者共享需另行授权。'; clinical.append(p); }
     const control = run.controls?.at(-1)?.value;
     if (control) { const p = document.createElement('p'); p.textContent = '患者交流 Agent 流程决定：' + control.action + '；' + control.reason + (control.question ? '；下一问题：' + control.question : ''); clinical.append(p); }
     el('medical-readable').append(clinical);
@@ -106,7 +107,7 @@
       for (const c of references) await api('/api/medical/stage-feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version,
         stage: 'diagnosis', successful: success === 'true', reason: el('medical-note').value });
     }
-    await load(); notice('医生复核已保存；已判定结果独立更新第二阶段，未知结果不扣分。');
+    await load(); notice('医生复核已保存，当前病例已自动存为本人病例记忆；已判定结果独立更新第二阶段，未知结果不扣分。');
   }); };
   el('lesson-draft').onclick = () => action(async () => {
     const draft = latest(selected(), 'review')?.lesson_drafts?.[0];

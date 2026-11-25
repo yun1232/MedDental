@@ -206,6 +206,8 @@ class ClinicalControlMixin:
                 return run
             review.update(success=successful, outcome_note=note)
             self._doctor_memory(run['encounter_id'], 'outcome:' + run_id, note, 'supplement')
+            from reviewed_case import remember_reviewed_case
+            remember_reviewed_case(self, run)
             run['memory_epoch'] = self._memory_epoch()
             self._write_run(run)
             return run

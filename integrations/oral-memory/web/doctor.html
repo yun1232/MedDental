@@ -17,7 +17,8 @@
 <section class="card"><h2>多智能体病例评估</h2><p>五个角色的结果等待医生核对；患者经历统一包含口腔与诊疗经历，病例共享仍需授权。</p>
 <button id="medical-load" type="button">读取团队评估</button><p id="medical-status" role="status">尚未读取</p>
 <label>评估轮次<select id="medical-run"></select></label><div id="medical-images"></div><div id="medical-readable"></div><details><summary>证据与版本记录</summary><pre id="medical-results"></pre></details>
-<form id="medical-review-form"><label>医生复核意见<textarea id="medical-note" required></textarea></label><label>诊断或随访确认结果<input id="medical-outcome" required></label><label>本次评估是否成功<select id="medical-success"><option value="">尚未判定</option><option value="true">成功</option><option value="false">失败</option></select></label><label class="check"><input id="medical-confirmed" type="checkbox" required>已查看原图并确认本轮评估意见</label><button type="submit">保存医生复核</button></form>
+<p>保存医生判断后，当前病例会自动存为本人病例记忆，关联患者经历、图像观察与医生结论，供后续就诊检索。跨患者共享仍需另行授权。</p>
+<form id="medical-review-form"><label>医生复核意见<textarea id="medical-note" required></textarea></label><label>诊断或随访确认结果<input id="medical-outcome" required></label><label>本次评估是否成功<select id="medical-success"><option value="">尚未判定</option><option value="true">成功</option><option value="false">失败</option></select></label><label class="check"><input id="medical-confirmed" type="checkbox" required>已查看原图并确认本轮评估意见</label><button type="submit">保存复核并记忆病例</button></form>
 <details><summary>将医生纠正保存为可复用经验</summary>
 <label>经验编号<input id="lesson-id"></label><label>当前版本<input id="lesson-version" type="number" value="0" min="0"></label>
 <label>适用条件<textarea id="lesson-condition"></textarea></label><label>原先错误<textarea id="lesson-mistake"></textarea></label>

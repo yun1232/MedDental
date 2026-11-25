@@ -1,4 +1,4 @@
-> 最新功能：患者交流 Agent 根据检索病例控制追问和流程；两阶段独立价值、独立视觉基线、候选去重与医生纠错经验。完整说明见 [功能与业务流程](integrations/oral-memory/TEAM.zh.md)。
+> 最新功能：患者交流 Agent 根据检索病例控制追问和流程；两阶段独立价值、独立视觉基线、候选去重与医生纠错经验；医生判断后的病例自动存为本人记忆。完整说明见 [功能与业务流程](integrations/oral-memory/TEAM.zh.md)。
 
 
 > 当前医疗精简版：累计移除 78 个无关包，保留 Web 问诊入口。最新删除范围与验证结果见 [PRUNING.zh.md](PRUNING.zh.md)，启动方法见 [REFINEMENT.zh.md](REFINEMENT.zh.md)。

@@ -23,6 +23,7 @@ from store import BUSINESS_CATEGORIES
 from team_schemas import OUTPUTS, check_output, REGION, array
 from workflow import PatientCommunicationAgent
 from clinical_control import ClinicalControlMixin, initialize, stage_value, select_diverse
+from reviewed_case import remember_reviewed_case
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 24 * 1024 * 1024
@@ -587,11 +588,23 @@ class MedicalProject(ClinicalControlMixin):
         self.db.execute("BEGIN IMMEDIATE")
         try:
             run = self.run(run_id)
+            if run['revision'] == expected_revision and run['status'] == 'doctor_reviewed':
+                old = run['doctor_review']
+                if any(old.get(key) != value for key, value in
+                       (('note', note), ('outcome', outcome), ('success', success))):
+                    fail('feedback_conflict', 'Doctor judgment already saved; submit an explicit correction or outcome update')
+                if not run.get('case_memory'):
+                    remember_reviewed_case(self, run)
+                    run['memory_epoch'] = self._memory_epoch()
+                    self._write_run(run)
+                self.db.commit()
+                return run
             if run["revision"] != expected_revision or run["status"] not in ("awaiting_doctor", "needs_input", "needs_human"):
                 fail("version_conflict", "Review a completed current consultation")
             run["doctor_review"] = {"success": success, "note": note, "outcome": outcome, "time": int(time.time()), "revision": expected_revision}
             run["status"] = "doctor_reviewed"
             self._doctor_memory(run["encounter_id"], "review:" + run_id, note + "；医生确认结果：" + outcome, "supplement")
+            remember_reviewed_case(self, run)
             run["memory_epoch"] = self._memory_epoch()
             self._write_run(run)
             self.db.commit()

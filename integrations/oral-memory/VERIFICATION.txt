@@ -135,3 +135,10 @@ pnpm exec vitest run packages/core/system-prompt/tests packages/preset/persona/t
 医生入口仍是本机单患者 token 入口，未接医院登录。
 数据库 schema 与原业务算法未改版；已有 v2 数据继续使用。
 测试只使用合成数据；交付不含依赖、构建缓存、数据库、凭据或真实患者数据。
+
+2026-11-25 Doctor-reviewed current cases become retrievable personal memory
+- pnpm test:oral: PASS (92 Python tests, 7 Harness workflow tests, launcher/integrity/MCP/persona/doctor HTTP and DOM checks).
+- Six new regression tests cover automatic two-stage recall with images and doctor judgment, private/shared isolation, unknown and failed outcomes, late outcome versioning, retries and permissions, transaction rollback, incomplete visual workflows and later review versions.
+- Doctor DOM verifies that saving judgment creates a personal case before any shared publication.
+- Current case storage and stage feedback on historical references remain separate; current encounter records are excluded from its own recall.
+- Functional guide and five-diagram Word document updated for automatic personal storage and explicit shared publication.

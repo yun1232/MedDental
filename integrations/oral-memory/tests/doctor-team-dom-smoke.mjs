@@ -54,6 +54,11 @@ try {
   el('medical-note').value = '已核对原图及观察依据'; el('medical-outcome').value = '已确认的随访结果'; el('medical-confirmed').checked = true
   el('medical-review-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
   await waitFor(() => el('medical-status').textContent.includes('医生复核已保存'))
+  assert.ok(el('medical-status').textContent.includes('当前病例已自动存为本人病例记忆'))
+  const privateCheck = "import sys,json; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory/tests'); from test_team import TeamTests; t=TeamTests(); t.path=Path(sys.argv[1]); t.resources=[]; p=t.project('synthetic-team-dom'); q={'purpose':'visual','patient_experience_query':'持续三个月','lesion_query':{'text':'unknown'},'care_query':'','experience_query':'','doctor_query':'','top_k':12}; found=p.store.retrieve(q,sources=(p.library,),initial_only=True); print(json.dumps([p._candidate(c,found) for c in found['candidates']])); [(p.close(),s.close()) for p,s in reversed(t.resources)]"
+  const personal = JSON.parse(execFileSync(python, ['-c', privateCheck, directory], { cwd: root, encoding: 'utf8' }))
+  assert.ok(personal.some(c => c.memory_reference.record_id.startsWith('reviewed-case-') && c.outcome.includes('已确认的随访结果') && c.images.length === 1))
+
   el('lesson-id').value = 'dom-lesson'; el('lesson-condition').value = '持续三个月';
   el('lesson-mistake').value = '遗漏检查结果'; el('lesson-correction').value = '先核对既往报告';
   el('lesson-limits').value = '只作为问询经验，不能直接确认病理'; el('lesson-action').value = 'ask';
