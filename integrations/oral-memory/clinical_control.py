@@ -145,8 +145,8 @@ class ClinicalControlMixin:
                 raise MemoryError('invalid_contribution', 'Finding is not grounded in the case-guided current region')
             if finding['certainty'] != 'clear' or finding['description'].strip() in known:
                 continue
-            # Lexical paraphrases are proposals, not automatic positive feedback. Doctor confirms novelty.
-            gains.append({**c, 'description': finding['description'], 'status': 'awaiting_doctor'})
+            # The review Agent checks semantic novelty against the regional workers.
+            gains.append({**c, 'description': finding['description'], 'status': 'awaiting_review'})
         return gains
 
     def stage_feedback(self, run_id, case_id, version, stage, successful, reason, finding_ids=None):
@@ -154,22 +154,22 @@ class ClinicalControlMixin:
         validate(successful, {'type': 'boolean'})
         validate(reason, text())
         validate(stage, choice('visual', 'diagnosis'))
+        if stage == 'visual':
+            raise MemoryError('visual_review_required', 'Visual value comes from the review Agent\'s regional evidence audit')
         validate(finding_ids or [], strings())
         run = self.run(run_id, current=False)
         key = 'key1' if stage == 'visual' else 'key2'
         rerank = next((r for r in reversed(run.get('rerankings', [])) if r['key'] == key), None)
         if not rerank or not any(r['case_id'] == case_id and r['version'] == version for r in rerank['selected']):
             raise MemoryError('not_selected', 'Only the selected reference at this stage can be evaluated')
-        if stage == 'visual':
-            gains = [g for g in run.get('visual_gains', []) if g['case_id'] == case_id and g['version'] == version]
-            if successful and (not finding_ids or any(i not in {g['finding_id'] for g in gains} for i in finding_ids)):
-                raise MemoryError('missing_new_evidence', 'Confirm actual new findings supported by a case-guided region')
-            if not any({'case_id': case_id, 'version': version} in v.get('source_cases', []) for v in run['views'] if v['kind'] == 'mask'):
-                raise MemoryError('missing_region', 'This reference did not provide a tested mask location')
-        else:
-            review = run.get('doctor_review') or {}
-            if review.get('success') is not successful:
-                raise MemoryError('missing_outcome', 'Confirm task success or failure in doctor review first')
+        review = run.get('doctor_review') or {}
+        if review.get('success') is not successful:
+            raise MemoryError('missing_outcome', 'Confirm task success or failure in doctor review first')
+        return self._record_stage_feedback(run, case_id, version, stage, successful, reason, finding_ids)
+
+    def _record_stage_feedback(self, run, case_id, version, stage, successful, reason, finding_ids=None):
+        """Internal commit after a validated regional audit or doctor outcome."""
+        run_id = run['run_id']
         candidate = next(c for r in reversed(run['retrievals']) for c in r['cases'] if c['case_id'] == case_id and c['version'] == version)
         target = self.store if candidate['memory_scope'] == 'patient' else self.library
         ref = candidate['memory_reference']

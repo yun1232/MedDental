@@ -25,7 +25,7 @@ const root = fileURLToPath(new URL('../../../', import.meta.url))
 const resources: Array<() => Promise<unknown>> = []
 afterEach(async () => { for (const cleanup of resources.splice(0).reverse()) await cleanup() })
 
-async function fixture(reviewRoutes = ['approve'], imageCapable = true, seedCase = false, seedPersonal = false, askAfterRetrieval = false) {
+async function fixture(reviewRoutes = ['approve'], imageCapable = true, seedCase = false, seedPersonal = false, askAfterRetrieval = false, visualVerdict = '') {
   const directory = await mkdtemp(resolve(tmpdir(), 'medical-team-'))
   resources.push(() => rm(directory, { recursive: true, force: true }))
   const before = { ...process.env }
@@ -50,7 +50,7 @@ for rid,site,color in [('native-a','颊黏膜',(10,20,30)),('native-b','舌',(30
  s.put('experience',{'record':narrative('experience','event-'+rid,'historical-'+rid,description='持续三个月' if rid=='native-a' else '三个月',links=[rid]),'expected_version':0})
  b=io.BytesIO();Image.new('RGB',(40,40),color).save(b,'PNG')
  image=p._save_image(base64.b64encode(b.getvalue()).decode(),p._private_dir())
- s.link_visual(reference(r),image,[],[],'old-memory',rid)
+ s.link_visual(reference(r),image,[{'image_id':image['image_id'],'box':[100,100,600,600],'description':'历史区域','basis':['历史原图']}] if ${visualVerdict ? 'True' : 'False'} else [],[],'old-memory',rid)
 for rid,count in [('native-a',6),('native-b',2)]:
  for i in range(count):
   receipt=s.retrieve(query(top_k=50))
@@ -109,8 +109,29 @@ p.close();s.close()
       value = { findings: [{ id: 'f1', image_id: imageId, description: '可见白色区域', supporting_views: [imageId], certainty: 'clear', tags: ['白色斑块'] }],
         regions: [{ image_id: imageId, box: [100, 100, 600, 600], description: '可见区域', basis: ['当前原图'] }], quality_issues: [], mask_sensitivity: findings > 1 ? ['原图与裁剪图相互支持，遮挡不产生独立阳性证据'] : [] }
     }
+    if (role === 'visual' && visualVerdict && !text.includes('独立观察基线：')) {
+      const message = all.find((b: any) => b.type === 'text' && b.text.startsWith('角色='))!.text
+      const data = JSON.parse(message.slice(message.indexOf('\n{') + 1))
+      const source = data.run.rerankings.find((r: any) => r.key === 'key1').selected[0]
+      value.regions[0].source_cases = [{ case_id: source.case_id, version: source.version }]
+      const crop = text.match(/DERIVED crop; view_id=([^;]+)/)?.[1]
+      if (crop && visualVerdict === 'new_information') {
+        value.findings[0].description = '当前裁剪可见新增表面细节'
+        value.findings[0].supporting_views = [crop]
+        value.contributions = [{ case_id: source.case_id, version: source.version, view_id: crop, finding_id: 'f1' }]
+      }
+    }
     if (role === 'reasoning') value = { summary: '需医生复核', hypotheses: [{ name: '待查黏膜病变', support_ids: ['f1'], against_ids: [], missing: ['病理'] }], case_refs: [], next_steps: ['核查报告'], uncertainties: ['病理未知'], red_flags: [] }
-    if (role === 'review') value = { route: reviewRoutes[Math.min(reviews++, reviewRoutes.length - 1)], issues: [], required_changes: '核查证据' }
+    if (role === 'review' && text.includes('执行视觉记忆价值审查')) {
+      const message = all.find((b: any) => b.type === 'text' && b.text.startsWith('角色='))!.text
+      const data = JSON.parse(message.slice(message.indexOf('\n{') + 1))
+      expect(data.run.doctor_review).toBeNull()
+      expect(data.run.outputs.every((o: any) => o.role === 'visual')).toBe(true)
+      expect(data).not.toHaveProperty('prior_reviews')
+      value = { summary: '直接审查区域视觉判断', assessments: data.visual_value_tasks.map((t: any) => ({
+        case_id: t.case_id, version: t.version, verdict: visualVerdict, reason: '对照区域判断与独立基线',
+        review_steps: t.regions.map((r: any) => r.step), finding_refs: visualVerdict === 'new_information' ? t.regions.flatMap((r: any) => r.new_information_candidates.map((g: any) => ({ step: r.step, finding_id: g.finding_id }))) : [] })) }
+    } else if (role === 'review') value = { route: reviewRoutes[Math.min(reviews++, reviewRoutes.length - 1)], issues: [], required_changes: '核查证据' }
     return toolCallResponse('role-' + seen.length, 'structured_output', value)
   }
   const script: any[] = [toolCallResponse('consult', 'medical_consult', {}), ...Array.from({ length: 36 }, () => (options: any) => {
@@ -210,6 +231,18 @@ describe('image-aware medical team composition', () => {
     expect(seen.map(s => s.role)).toEqual(['patient', 'retrieval', 'patient'])
     expect(result(events)).toContain('needs_input')
     expect(result(events)).toContain('请补充检查结果')
+  }, 30000)
+
+  it.each(['new_information', 'no_new_information', 'uncertain'])('audits regional visual value without doctor feedback: %s', async verdict => {
+    const { seen, events, directory } = await fixture(['approve'], true, false, true, false, verdict)
+    expect(seen.filter(s => s.role === 'review' && s.text.includes('执行视觉记忆价值审查'))).toHaveLength(1)
+    expect(result(events)).toContain('awaiting_doctor')
+    const inspect = `import sys,json; from pathlib import Path; sys.path.insert(0,'integrations/oral-memory'); from store import MemoryStore; from team_memory import MedicalProject; s=MemoryStore(Path(sys.argv[1])/'memory.sqlite3','synthetic-team','patient'); p=MedicalProject(s); r=p.list_runs('visit')[0]; print(json.dumps({'audit':r['visual_value_review'],'doctor':r['doctor_review'],'values':[dict(x) for x in s.db.execute("SELECT stage,value FROM stage_values WHERE record_id='native-b'")]})); p.close(); s.close()`
+    const stored = JSON.parse(execFileSync(process.env.ORAL_MEMORY_PYTHON || 'python3', ['-c', inspect, directory], {cwd: root, encoding: 'utf8'}))
+    expect(stored.doctor).toBeNull()
+    expect(stored.audit.source).toBe('review_agent')
+    expect(stored.values.find((x: any) => x.stage === 'visual').value).toBe(verdict === 'no_new_information' ? .7 : .8)
+    expect(stored.values.find((x: any) => x.stage === 'diagnosis').value).toBe(.8)
   }, 30000)
 
   it('refuses a text-only model before any child sees a reduced input', async () => {

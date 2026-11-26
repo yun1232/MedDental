@@ -142,3 +142,12 @@ pnpm exec vitest run packages/core/system-prompt/tests packages/preset/persona/t
 - Doctor DOM verifies that saving judgment creates a personal case before any shared publication.
 - Current case storage and stage feedback on historical references remain separate; current encounter records are excluded from its own recall.
 - Functional guide and five-diagram Word document updated for automatic personal storage and explicit shared publication.
+
+2026-11-26 Visual value is decided by the review Agent from regional workers
+- pnpm test:oral: PASS (101 Python tests and 10 real Harness workflow tests, plus source integrity, launcher, MCP, persona and doctor HTTP/DOM checks).
+- Regional crop/mask worker outputs are preserved with step-scoped findings and case lineage; the aggregate visual summary cannot replace them.
+- Before a consultation ends, the review Agent reads every tested region and distinguishes new information, no new information and uncertainty; only an explicit no-new-information verdict deducts visual value.
+- Positive verdicts require actual crop-supported findings beyond the blinded baseline. Untested and uncertain references are not penalized. Retries do not double-count.
+- Verified both personal and authorized shared references; diagnosis values remain independent. Doctor endpoints/UI no longer score visual value.
+- Doctor-confirmed assessment outcomes still control diagnosis value, and doctor judgment still automatically saves the current case as personal memory.
+- Updated the five diagrams and functional guide, including the worked case in Figure 4.

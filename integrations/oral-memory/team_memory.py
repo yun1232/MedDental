@@ -24,6 +24,7 @@ from team_schemas import OUTPUTS, check_output, REGION, array
 from workflow import PatientCommunicationAgent
 from clinical_control import ClinicalControlMixin, initialize, stage_value, select_diverse
 from reviewed_case import remember_reviewed_case
+from visual_value import record_region_review, visual_value_tasks, save_visual_value_review
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 24 * 1024 * 1024
@@ -235,11 +236,15 @@ class MedicalProject(ClinicalControlMixin):
                 "current_memories": {category: [r for r in self.store.records(category) if r["encounter_id"] == run["encounter_id"]] for category in BUSINESS_CATEGORIES},
                 "doctor_notes": [r for r in self.store.records("doctor") if r["encounter_id"] == run["encounter_id"]][-10:],
                 "reusable_lessons": self.lessons(" ".join(m["text"] for m in run["input"]["messages"])),
+                "visual_value_tasks": visual_value_tasks(run),
                 "prior_reviews": [{"encounter_id": r["encounter"], "input_revision": r["revision"],
                                    "doctor_review": json.loads(r["payload"])["doctor_review"]}
                                   for r in self.db.execute("SELECT encounter,revision,payload FROM medical_runs WHERE patient=? AND status='doctor_reviewed' ORDER BY rowid DESC LIMIT 10", (self.patient,))]}
 
-    def save_output(self, run_id, role, value):
+    def save_visual_value_review(self, run_id, value):
+        return save_visual_value_review(self, run_id, value)
+
+    def save_output(self, run_id, role, value, region_view_ids=None):
         if role not in OUTPUTS:
             fail("invalid_role", "Unknown team role")
         check_output(role, value)
@@ -268,6 +273,10 @@ class MedicalProject(ClinicalControlMixin):
                     "unscored": [{"case_id": c["case_id"], "version": c["version"]} for c in initial["cases"] if (c["case_id"], c["version"]) not in scored]})
             if role == "visual":
                 run["visual_gains"] = self.visual_gains(run, value)
+            if region_view_ids is not None:
+                if role != 'visual':
+                    fail('invalid_region_review', 'Only a visual worker can produce regional judgments')
+                record_region_review(self, run, value, region_view_ids)
             run["memory_epoch"] = self._memory_epoch()
             self._write_run(run)
             self.db.commit()
@@ -558,6 +567,8 @@ class MedicalProject(ClinicalControlMixin):
             if status == "awaiting_doctor":
                 if not all(self.latest(run, r) is not None for r in OUTPUTS) or self.latest(run, "review")["route"] != "approve":
                     fail("incomplete_review", "All five roles and an approving audit are required")
+            if status != 'failed' and visual_value_tasks(run) and not run.get('visual_value_review'):
+                fail('incomplete_visual_review', 'Review the regional visual judgments before ending this run')
             run["status"] = status
             self._write_run(run)
             self.db.commit()

@@ -9,6 +9,13 @@ def array(item, maximum=20):
 UNIT = {"type": "integer", "minimum": 0, "maximum": 1000}
 BOX = array(UNIT, 4)  # additionally require exactly four ordered coordinates
 CASE_REF = obj({"case_id": text(), "version": {"type": "integer", "minimum": 1}}, ("case_id", "version"))
+REVIEW_STEP = {"type": "integer", "minimum": 1, "maximum": 24}
+VISUAL_VALUE_REVIEW = obj({"summary": text(), "assessments": array(obj({
+    **CASE_REF['properties'], "verdict": choice("new_information", "no_new_information", "uncertain"),
+    "review_steps": array(REVIEW_STEP, 24), "finding_refs": array(obj({"step": REVIEW_STEP,
+        "finding_id": text()}, ("step", "finding_id")), 30), "reason": text()},
+    ("case_id", "version", "verdict", "review_steps", "finding_refs", "reason")), 12)},
+    ("summary", "assessments"))
 CONTROL = obj({"action": choice("ask", "visual", "retrieve", "reasoning", "finish", "human"),
     "question": text(empty=True), "reason": text(), "gaps": array(obj({"field": text(), "why": text(),
     "case_refs": array(CASE_REF, 12)}, ("field", "why", "case_refs")), 10)}, ("action", "question", "reason", "gaps"))

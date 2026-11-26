@@ -22,7 +22,8 @@ def main():
         operations = {"state": project.state, "ingest": project.ingest, "context": project.context,
                       "save_output": project.save_output, "retrieve": project.retrieve,
                       "make_views": project.make_views, "finish": project.finish,
-                      "control": project.control, "save_baseline": project.save_baseline}
+                      "control": project.control, "save_baseline": project.save_baseline,
+                      "save_visual_value_review": project.save_visual_value_review}
         if op == "image":
             value = {"data": base64.b64encode(project.image(**args)).decode(), "media_type": "image/png"}
         elif op in operations:

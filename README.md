@@ -1,4 +1,4 @@
-> 最新功能：患者交流 Agent 根据检索病例控制追问和流程；两阶段独立价值、独立视觉基线、候选去重与医生纠错经验；医生判断后的病例自动存为本人记忆。完整说明见 [功能与业务流程](integrations/oral-memory/TEAM.zh.md)。
+> 最新功能：患者交流 Agent 根据检索病例控制追问和流程；两阶段独立价值、独立视觉基线、候选去重与医生纠错经验；视觉价值由审查 Agent 核对区域视觉判断后自动更新；医生判断后的病例自动存为本人记忆。完整说明见 [功能与业务流程](integrations/oral-memory/TEAM.zh.md)。
 
 > 当前医疗精简版：累计移除 78 个无关包，保留 Web 问诊入口。最新删除范围与验证结果见 [PRUNING.zh.md](PRUNING.zh.md)，启动方法见 [REFINEMENT.zh.md](REFINEMENT.zh.md)。
 
@@ -14,7 +14,7 @@ Implementation and usage: [五角色医疗框架](integrations/oral-memory/TEAM.
 
 This distribution preserves the Harness runtime, Cordis vendor sources, native capabilities, dependency patches and application entry points. Oral business behavior uses the existing MCP client and a patient-specific agent preset.
 
-The patient communication agent controls case-grounded questions and bounded workflow routing. Stage 1 retrieves by patient experience for visual reference; stage 2 merges and reranks cases using lesion descriptors plus experience. Each stage uses its own persistent value multiplier. Visual value depends on doctor-confirmed new evidence from a case-guided mask location; diagnostic value depends on confirmed task success. Visual inspection starts with a blinded original-image baseline. Candidate diversity reduces redundant references. Doctor-confirmed correction lessons can be recalled under explicit patient/shared boundaries. Records and prior versions are retained.
+The patient communication agent controls case-grounded questions and bounded workflow routing. Stage 1 retrieves by patient experience for visual reference; stage 2 merges and reranks cases using lesion descriptors plus experience. Each stage uses its own persistent value multiplier. Visual value is updated automatically by the review agent after inspecting each regional visual worker's grounded judgment and the independent baseline; diagnostic value depends on confirmed task success. Visual inspection starts with a blinded original-image baseline. Candidate diversity reduces redundant references. Doctor-confirmed correction lessons can be recalled under explicit patient/shared boundaries. Records and prior versions are retained.
 
 ## Start
 

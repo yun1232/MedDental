@@ -40,25 +40,36 @@ class ClinicalControlTests(unittest.TestCase):
         views = self.p.make_views(run)
         output = visual(im, '当前裁剪可见新增表面细节', views[0]['view_id'])
         output['contributions'] = [{'case_id': c['case_id'], 'version': c['version'], 'view_id': views[0]['view_id'], 'finding_id': 'f1'}]
-        self.p.save_output(run, 'visual', output)
+        self.p.save_output(run, 'visual', output, region_view_ids=[v['view_id'] for v in views])
         return run, c, output
+
+    def visual_review(self, run, c, verdict='new_information'):
+        tasks = self.p.context(run)['visual_value_tasks']
+        regions = next(t['regions'] for t in tasks if t['case_id'] == c['case_id'])
+        return {'summary': '审查各区域视觉 Agent 的判断', 'assessments': [{
+            'case_id': c['case_id'], 'version': c['version'], 'verdict': verdict,
+            'review_steps': [r['step'] for r in regions],
+            'finding_refs': [{'step': r['step'], 'finding_id': g['finding_id']}
+                for r in regions for g in r['new_information_candidates']] if verdict == 'new_information' else [],
+            'reason': '对照原图基线和区域判断核查新增信息'}]}
 
     def test_independent_stage_verdicts_and_retry(self):
         run, c, _ = self.setup_visual()
+        judgment = self.visual_review(run, c, 'no_new_information')
+        result = self.p.save_visual_value_review(run, judgment)
         doc = self.project('patient-a', 'doctor')
-        result = doc.stage_feedback(run, c['case_id'], 1, 'visual', False, '区域未提供有效新增信息')
-        self.assertEqual(result['value'], .9)
-        self.assertEqual(stage_value(doc.store, c['memory_reference'], 'diagnosis'), 1)
-        self.assertTrue(doc.stage_feedback(run, c['case_id'], 1, 'visual', False, '区域未提供有效新增信息')['duplicate'])
-        self.assertEqual(stage_value(doc.store, c['memory_reference'], 'visual'), .9)
-        with self.assertRaises(MemoryError): self.p.stage_feedback(run, c['case_id'], 1, 'visual', False, '模型不能自评')
+        self.assertEqual(result['results'][0]['value'], .9)
+        self.assertEqual(stage_value(self.p.store, c['memory_reference'], 'diagnosis'), 1)
+        self.assertEqual(self.p.save_visual_value_review(run, judgment), result)
+        self.assertEqual(stage_value(self.p.store, c['memory_reference'], 'visual'), .9)
+        with self.assertRaises(MemoryError): doc.stage_feedback(run, c['case_id'], 1, 'visual', False, '不再由医生评价视觉价值')
 
-    def test_new_information_needs_crop_lineage_and_doctor_confirmation(self):
+    def test_new_information_needs_crop_lineage_and_regional_review(self):
         run, c, out = self.setup_visual()
-        self.assertEqual(len(self.p.run(run)['visual_gains']), 1)
-        doc = self.project('patient-a', 'doctor')
-        with self.assertRaises(MemoryError): doc.stage_feedback(run, c['case_id'], 1, 'visual', True, '新增', ['invented'])
-        self.assertEqual(doc.stage_feedback(run, c['case_id'], 1, 'visual', True, '已核对新增细节', ['f1'])['value'], 1)
+        judgment = self.visual_review(run, c)
+        bad = deepcopy(judgment); bad['assessments'][0]['finding_refs'][0]['finding_id'] = 'invented'
+        with self.assertRaises(MemoryError): self.p.save_visual_value_review(run, bad)
+        self.assertEqual(self.p.save_visual_value_review(run, judgment)['results'][0]['value'], 1)
         bad = deepcopy(out); bad['contributions'][0]['view_id'] = self.p.run(run)['views'][1]['view_id']
         with self.assertRaises(MemoryError): self.p.save_output(run, 'visual', bad)
         same = deepcopy(out); same['findings'][0]['description'] = '原始白色区域'
@@ -71,6 +82,7 @@ class ClinicalControlTests(unittest.TestCase):
         self.p.save_output(run, 'retrieval', ranking(second['cases'], {'old': 80}))
         self.p.save_output(run, 'reasoning', reasoning())
         self.p.save_output(run, 'review', {'route': 'approve', 'issues': [], 'required_changes': ''})
+        self.p.save_visual_value_review(run, self.visual_review(run, c))
         self.p.finish(run, 'awaiting_doctor')
         doc = self.project('patient-a', 'doctor')
         with self.assertRaises(MemoryError): doc.stage_feedback(run, c['case_id'], 1, 'diagnosis', True, '不能用审查通过代替成功')

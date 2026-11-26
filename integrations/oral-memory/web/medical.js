@@ -60,25 +60,20 @@
     el('medical-case').textContent = '填写病例并确认发布时，这里显示医生整理的结构化病例。';
     if (el('lesson-results')) el('lesson-results').textContent = JSON.stringify(loaded.lessons || [], null, 2);
     if (el('medical-success')) el('medical-success').value = run.doctor_review?.success === true ? 'true' : run.doctor_review?.success === false ? 'false' : '';
-    for (const [key, stage, title] of [['key1', 'visual', '第一阶段 区域带来新信息'], ['key2', 'diagnosis', '第二阶段 评估成功与否']]) {
+    if (run.visual_value_review) { const pre = document.createElement('pre'); pre.textContent = '第一阶段视觉价值由审查 Agent 根据各区域视觉判断自动更新，医生无需逐区域计分。\n' + JSON.stringify(run.visual_value_review, null, 2); el('medical-feedback').append(pre); }
+    for (const [key, stage, title] of [['key2', 'diagnosis', '第二阶段 评估成功与否']]) {
       const ranking = [...(run.rerankings || [])].reverse().find(r => r.key === key);
       if (!ranking) continue;
       for (const c of ranking.selected) {
         const row = document.createElement('div'), label = document.createElement('p');
         label.textContent = title + ' · ' + c.case_id + ' · M=' + c.model_score + ' · D=' + c.decay_score + ' · F=' + c.final_score;
         row.append(label);
-        const gains = (run.visual_gains || []).filter(g => g.case_id === c.case_id && g.version === c.version);
-        const checks = gains.map(g => {
-          const line = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox';
-          line.append(check, document.createTextNode('确认新增信息：' + g.description)); row.append(line); return [check, g.finding_id];
-        });
         for (const successful of [true, false]) {
           const button = document.createElement('button'); button.type = 'button';
-          button.textContent = stage === 'visual' ? successful ? '确认区域带来新信息' : '确认区域未带来新信息' : successful ? '按成功评价' : '按失败评价';
+          button.textContent = successful ? '按成功评价' : '按失败评价';
           button.onclick = () => action(async () => {
             const reason = el('medical-note').value.trim(); if (!reason) throw new Error('请填写复核说明。');
-            await api('/api/medical/stage-feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version, stage, successful, reason,
-              finding_ids: checks.filter(([check]) => check.checked).map(([, id]) => id) });
+            await api('/api/medical/stage-feedback', { run_id: run.run_id, case_id: c.case_id, version: c.version, stage, successful, reason });
             notice('已保存本阶段反馈，另一阶段分数保持不变。');
           });
           row.append(button);
