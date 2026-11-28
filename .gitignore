@@ -62,3 +62,6 @@ integrations/oral-memory/**/__pycache__/
 
 # Default private/shared medical image vault (normally configured outside the checkout).
 medical-images/
+
+# Offline episodes contain patient information, model transcripts and hidden labels.
+/runs/

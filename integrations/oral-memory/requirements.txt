@@ -1,2 +1,4 @@
 # Image validation, EXIF normalization, crops and controlled masks. No training dependencies.
 Pillow>=12.0.0,<14
+# Offline labeled workbook loading; no learning framework or model weights.
+openpyxl>=3.1.5,<4

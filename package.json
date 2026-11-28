@@ -54,10 +54,14 @@
     "oral:patient": "node scripts/oral-project.mjs patient",
     "oral:doctor": "node scripts/oral-project.mjs doctor",
     "oral:check": "node scripts/oral-project.mjs check",
+    "oral:batch": "node scripts/oral-batch.mjs",
+    "oral:train": "node scripts/oral-batch.mjs --phase train",
+    "oral:test": "node scripts/oral-batch.mjs --phase test",
     "test:medical-web": "node integrations/oral-memory/tests/web-startup-smoke.mjs",
     "vitest": "vitest --config config/vitest.config.ts"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/dsh-tool-executor-native": "workspace:*",
     "@deepseek-ai/dsh-tool-executor-ptc": "workspace:*",
     "@deepseek-ai/dsh-tool-terminal": "workspace:*",

@@ -101,6 +101,8 @@ async function main() {
       [process.execPath, ['integrations/oral-memory/tests/doctor-team-dom-smoke.mjs']],
       [process.execPath, ['--import', 'tsx/esm', 'integrations/oral-memory/tests/patient-preset-smoke.mjs']],
       [process.execPath, ['node_modules/vitest/vitest.mjs', 'run', '--config', 'config/vitest.config.ts', 'integrations/oral-memory/tests/harness-team.spec.ts']],
+      [process.execPath, ['node_modules/vitest/vitest.mjs', 'run', '--config', 'config/vitest.config.ts', 'integrations/oral-memory/tests/batch.spec.ts']],
+      [process.execPath, ['--import', 'tsx/esm', 'integrations/oral-memory/tests/batch-sdk-smoke.mjs']],
     )
   }
   for (const [command, commandArgs] of checks) {

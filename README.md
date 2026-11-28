@@ -4,6 +4,8 @@
 
 # MedDental
 
+Offline memory learning and frozen evaluation: `pnpm oral:batch --mode doctor` or `--mode patient`. Both reuse the existing medical workflow. See the [batch guide](integrations/oral-memory/BATCH.zh.md) for configuration, patient simulation, splits and outputs.
+
 Project configuration is centralized in [`config/`](config/README.md). Use `pnpm vitest run ...` for selected tests; the root `tsconfig.json` remains the automatic discovery entry.
 
 Image-aware, case-memory medical collaboration on DeepSeek Harness. Five frozen-model roles collect information, rank prior cases, inspect images, reason and audit; doctor-reviewed cases automatically enter personal memory, while cross-patient publication requires separate authorization.

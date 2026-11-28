@@ -5,6 +5,8 @@
 
 # MedDental
 
+离线训练与测试：`pnpm oral:batch --mode doctor`（医生提供信息）或 `pnpm oral:batch --mode patient`（模拟患者多轮对话）。两种模式复用现有 memory 流程，训练集学习、测试集冻结。详见 [批处理指南](integrations/oral-memory/BATCH.zh.md)。
+
 项目配置已集中到 [`config/`](config/README.md)，原有启动和构建命令继续使用；运行指定测试可使用 `pnpm vitest run ...`。
 
 基于 DeepSeek Harness 的口腔白斑记忆与渐进问询系统。
