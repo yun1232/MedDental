@@ -80,7 +80,7 @@ def prepare(args):
     save(path, split)
     implementation = fingerprint({p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                                   for p in Path(__file__).parent.glob('*.py')})
-    config = {'version': 3, 'dataset_hash': data_hash, 'input_mode': args.input_mode, 'model': args.model,
+    config = {'version': 4, 'pipeline': 'four-agent-unified-memory', 'dataset_hash': data_hash, 'input_mode': args.input_mode, 'model': args.model,
               'endpoint_hash': fingerprint(args.base_url), 'max_rounds': args.max_rounds,
               'confidence_threshold': args.confidence_threshold, 'top_k': args.top_k,
               'implementation': implementation}

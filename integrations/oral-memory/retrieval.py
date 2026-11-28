@@ -217,3 +217,25 @@ def staged(records, query, settings, purpose):
     return {**result, 'status': 'ok' if selected else 'no_match', 'candidates': selected,
             'supplementary': {'patient_experience': list(events.values()), 'doctor': rank_text(notes, '', settings['per_category_limit'])},
             'stage1_match_count': matched, 'stage1_truncated': matched > settings['recall_limit']}
+
+
+def unified(records, query, settings):
+    """One candidate pool for offline visual evidence, case reasoning and region guidance.
+
+    Reuse native descriptor/history matching and decay. Care/target records never
+    become history recall text; there is no phase-specific channel switch.
+    """
+    candidates = []
+    for lesion in records['lesion']:
+        appearance, matches = phenotype_score(query['lesion_query'], lesion, settings['weights'])
+        appearance = appearance or 0
+        history = max((text_score(query['patient_experience_query'], r['search_text'])
+                       for r in records['experience'] if associated(r, lesion)), default=0)
+        if history <= 0 and (appearance <= 0 or appearance < settings['min_phenotype_score']):
+            continue
+        score = appearance + 0.1 * history
+        candidates.append({'lesion': lesion, 'matching_score': score, 'field_matches': matches,
+                           'phenotype_score': appearance, 'patient_experience_score': history,
+                           'retrieval_score': score * lesion['stats']['decay_score']})
+    candidates.sort(key=lambda item: (-item['retrieval_score'], item['lesion']['case_id']))
+    return candidates[:query['top_k']]

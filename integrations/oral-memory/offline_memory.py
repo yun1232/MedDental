@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 import sqlite3
 
-from case_library import CaseLibrary, library_identity, record_id
+from case_library import CaseLibrary, library_identity
 from extensions import reference
-from retrieval import staged
+from retrieval import unified
 from schemas import PHENOTYPE
 from store import settings_from_env
 
@@ -35,7 +35,7 @@ class OfflineMemory:
     def close(self):
         self.library.close()
 
-    def retrieve(self, case, observations=(), purpose='visual', top_k=5, episode_id=''):
+    def retrieve(self, case, observations=(), gaps=(), top_k=5):
         rows = self.library.db.execute('SELECT payload FROM cases WHERE domain=?', (self.domain,)).fetchall()
         originals = {i['sha256'] for i in case['images']}
         eligible = {}
@@ -46,34 +46,28 @@ class OfflineMemory:
             eligible[value['case_id']] = value
         records = {category: [r for r in self.library.records(category) if r.get('case_id') in eligible]
                    for category in ('lesion', 'experience', 'care', 'doctor')}
-        # Published targets are not a patient-history retrieval channel.
-        history_records = {**records, 'care': []}
         unknown = {'', '/', '未记录', '不明', '未知', 'unknown'}
         history = case['text'].get('既往史', '')
-        phenotype = '；'.join([*(v for k, v in case['text'].items() if k != '既往史' and v not in unknown), *observations])
+        phenotype = '；'.join([*(v for k, v in case['text'].items() if k != '既往史' and v not in unknown),
+                              *observations, *gaps])
         query = {'patient_experience_query': history if history not in unknown else '',
-                 'lesion_query': {'text': phenotype}, 'top_k': 50}
-        result = staged(history_records, query, self.settings, purpose)
-        scored = []
-        for candidate in result['candidates']:
-            anchor = candidate['lesion']
-            memory = eligible[anchor['case_id']]
-            decay = anchor['stats']['decay_score']
-            match = (candidate['patient_experience_score'] if purpose == 'visual' else
-                     candidate['phenotype_score'] + candidate['patient_experience_score'] * 0.1)
-            scored.append((match * decay, candidate, memory))
-        scored.sort(key=lambda item: (-item[0], item[2]['case_id']))
-        selected = scored[:top_k]
+                 'lesion_query': {'text': phenotype}, 'top_k': top_k}
         packets = []
-        for score, candidate, value in selected:
-            packet = {'case_id': value['case_id'], 'version': value['version'],
-                      'history': value['context'], 'regions': value['regions'],
-                      'retrieval_score': score, 'decay': candidate['lesion']['stats']['decay_score']}
-            packet['matching_score'] = score / packet['decay'] if packet['decay'] else 0
-            if purpose == 'diagnosis':
-                packet.update(observations=value['phenotype'], prior_case_labels=value.get('labels', {}))
-            packet['_images'] = value['images']
-            packets.append(packet)
+        for candidate in unified(records, query, self.settings):
+            value = eligible[candidate['lesion']['case_id']]
+            packets.append({'case_id': value['case_id'], 'version': value['version'],
+                            'history': value['context'], 'observations': value['phenotype'],
+                            'evidence': value.get('evidence', value['phenotype']),
+                            'regions': value['regions'], 'prior_case_labels': value.get('labels', {}),
+                            'source_ref': value['source_ref'],
+                            'reference_rationale': value.get('reference_rationale'),
+                            'observation_source': value.get('observation_source', 'unknown'),
+                            'initial_visual': value.get('initial_visual'), 'final_visual': value.get('final_visual'),
+                            'reasoning_summary': value.get('reasoning_summary'),
+                            'outcome': value.get('outcome', '未知'),
+                            'retrieval_score': candidate['retrieval_score'],
+                            'matching_score': candidate['matching_score'],
+                            'decay': candidate['lesion']['stats']['decay_score'], '_images': value['images']})
         return packets
 
     def delivered(self, packets, episode_id):
@@ -97,8 +91,9 @@ class OfflineMemory:
         for image in case['images']:
             images.append({'image_id': 'memory-' + image['sha256'][:24], 'path': image['path'],
                            'sha256': image['sha256']})
-        regions = [{**view, 'image_id': images[view['image_index']]['image_id']}
-                   for view in episode['views']]
+        judgments = {p['input_view']: p['result'] for p in episode['visual_passes'] if p['input_view']}
+        regions = [{**view, 'image_id': images[view['image_index']]['image_id'],
+                    'visual_judgment': judgments[view['id']]} for view in episode['views']]
         # Only visible text + model visual observations become retrieval descriptors.
         phenotype = [v for k, v in case['text'].items() if k != '既往史']
         phenotype.extend(episode['final']['observations'])
@@ -108,6 +103,12 @@ class OfflineMemory:
                  'source_case_id': case['id'], 'original_hashes': [i['sha256'] for i in case['images']],
                  'phenotype': list(dict.fromkeys(phenotype)), 'context': [case['text'].get('既往史', '未记录')],
                  'evidence': episode['final']['observations'], 'labels': case['labels'],
+                 'initial_visual': episode['baseline'], 'final_visual': episode['visual_passes'][-1]['result'],
+                 'reference_rationale': None,
+                 'reasoning_summary': {'source': 'model_inference', 'etiology': episode['final']['etiology'],
+                                       'treatment': episode['final']['treatment'],
+                                       'evidence': episode['final']['evidence'],
+                                       'limitations': episode['final']['limitations']},
                  'experience': '病因标签：' + case['labels']['病因'] + '；治疗标签：' + case['labels']['治疗方案'],
                  'pitfalls': episode['final']['uncertainties'], 'outcome': '仅有参考标注，真实疗效未知',
                  'source_ref': 'dataset:' + dataset_hash + ':case:' + case['id'],

@@ -7,7 +7,7 @@ Offline multimodal inference for dental enamel white spots. Run `python train.py
 | `history` | 既往史 | 病因、治疗方案 |
 | `clinical` | 既往史、分布、质地、色调、均一性 | 病因、治疗方案 |
 
-Every inference retains all current original images and the fixed text. Visual uncertainty can request one crop or mask from a current original; the next inference sees the originals plus that actual auxiliary image. Unresolved cases remain explicit when the visual budget is exhausted.
+Four separate roles handle visual evidence, unified memory retrieval and region planning, diagnostic reasoning, and per-round review. Retrieval combines fixed text, current visual findings and evidence gaps in one candidate pool; it supplies source-grounded case derivations to reasoning. Visual uncertainty or a review conflict routes through retrieval to a crop/mask of a current original, then fresh visual analysis and updated case context. Reasoning-only corrections reuse the evidence. Every round retains all current originals and fixed text. Both train and test run diagnostic review; only training can update memory. Unresolved cases remain explicit when the budget is exhausted.
 
 ```sh
 python -m pip install -r integrations/oral-memory/requirements.txt
