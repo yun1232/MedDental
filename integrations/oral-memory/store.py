@@ -304,8 +304,7 @@ class MemoryStore(VisualMemoryMixin, UtilityMixin):
             result = staged(records, arguments, settings, purpose) if purpose != "legacy" else hierarchical(records, arguments, settings)
             if initial_only and purpose == "legacy":
                 result["ranking"] = ["phenotype_score DESC", "care_score DESC", "stable initial ties; iteration score applied only after model scoring"]
-            from workflow import PatientCommunicationAgent
-            result["required_context"] = PatientCommunicationAgent(self).required_context(arguments.get("encounter_id"))
+            result["required_context"] = {"doctor_questions": [], "current_diagnoses": [], "conflicts": []}
             delivered = self._deliver(result, consultation_id=consultation_id)
             delivered["source_packets"] = [{"scope": "patient", "retrieval_id": delivered["retrieval_id"], "delivered_refs": delivered["delivered_refs"]}]
             for source in sources:

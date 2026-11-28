@@ -1,3 +1,5 @@
+历史记录：患者/医生客户端与旧 SDK 流程已于 2026-11-28 退出当前主流程。现入口为根目录 train.py、test.py，详见 README.zh.md 和 integrations/oral-memory/BATCH.zh.md。
+
 2026-11-23：统一患者经历与阶段检索（非破坏性兼容升级）
 - 三类业务：lesion / patient_experience / doctor。
 - patient_experience_memory 是 experience_memory 与 care_memory 的 UNION ALL 视图；不复制、删除或改写旧记录。

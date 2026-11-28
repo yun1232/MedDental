@@ -36,10 +36,6 @@ def call(store, name, arguments):
         return store._deliver(store.get(arguments))
     if name in ("memory_feedback", "set_frequency"):
         return getattr(store, name)(arguments)
-    if name in ("case_state", "patient_turn", "patient_decide", "doctor_submit"):
-        from workflow import PatientCommunicationAgent
-        result = getattr(PatientCommunicationAgent(store), name)(arguments)
-        return store._deliver(result) if name == "case_state" else result
     return {"policy": instructions(), "patient_id": store.patient_id, "actor_role": store.role,
             "encounter_id": os.environ.get("ORAL_MEMORY_ENCOUNTER_ID", "current")}
 

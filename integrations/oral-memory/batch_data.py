@@ -1,9 +1,15 @@
-"""Workbook boundary: numbered cases, diagnosis facts, hidden treatment labels."""
+"""Strict allowlists for visible inputs and separate etiology/treatment targets."""
 import hashlib
 import json
 import random
 import re
 from pathlib import Path
+
+INPUT_FIELDS = {
+    'history': ('既往史',),
+    'clinical': ('既往史', '分布', '质地', '色调', '均一性'),
+}
+LABEL_FIELDS = ('病因', '治疗方案')
 
 
 def fingerprint(value):
@@ -12,9 +18,13 @@ def fingerprint(value):
 
 def case_number(value):
     value = str(value).strip()
-    if not re.fullmatch(r"[0-9]+(?:\.0+)?", value):
-        raise ValueError(f"Invalid case number: {value!r}")
-    return str(int(float(value)))
+    if not re.fullmatch(r'[0-9]+(?:\.0+)?', value):
+        raise ValueError(f'Invalid case number: {value!r}')
+    return str(int(value.split('.')[0]))
+
+
+def field_name(value):
+    return re.split(r'[（(]', str(value).strip(), maxsplit=1)[0].strip()
 
 
 def read_cases(workbook, image_dir, sheet=None):
@@ -25,61 +35,56 @@ def read_cases(workbook, image_dir, sheet=None):
         page = book[sheet] if sheet else book.worksheets[0]
         rows = iter(page.values)
         raw = list(next(rows))
-        while raw and raw[-1] in (None, ""):
+        while raw and raw[-1] in (None, ''):
             raw.pop()
-        headers = [str(h).strip() if h is not None else "" for h in raw]
-        if len(headers) < 3 or headers[0] != "编号" or headers[-1] != "治疗方案":
-            raise ValueError("First effective column must be 编号; last must be 治疗方案")
-        if any(not h for h in headers) or len(set(headers)) != len(headers):
-            raise ValueError("Nonempty, unique effective column names are required")
-        image_dir = Path(image_dir).resolve()
+        headers = [field_name(h) if h is not None else '' for h in raw]
+        required = {'编号', *INPUT_FIELDS['clinical'], *LABEL_FIELDS}
+        if not headers or headers[0] != '编号' or not required.issubset(headers) or any(not h for h in headers) or len(set(headers)) != len(headers):
+            raise ValueError('Workbook needs unique 编号、既往史、分布、质地、色调、均一性、病因、治疗方案 columns')
         images = {}
-        for path in sorted(image_dir.iterdir()):
-            if path.is_file() and path.suffix.lower() in (".jpg", ".jpeg", ".png"):
-                match = re.fullmatch(r"([0-9]+)(?:-\d+)?", path.stem)
-                if match:
-                    images.setdefault(case_number(match[1]), []).append(path)
+        for path in sorted(Path(image_dir).resolve().iterdir()):
+            match = re.fullmatch(r'([0-9]+)(?:-\d+)?', path.stem)
+            if path.is_file() and match and path.suffix.lower() in ('.jpg', '.jpeg', '.png'):
+                images.setdefault(case_number(match[1]), []).append(path)
         cases, excluded, seen = [], [], set()
         for row_number, row in enumerate(rows, 2):
             if row[0] is None:
-                if any(x not in (None, "") for x in row):
-                    raise ValueError(f"Row {row_number} contains data without a case number")
+                if any(x not in (None, '') for x in row):
+                    raise ValueError(f'Row {row_number} has values without an ID')
                 continue
             cid = case_number(row[0])
             if cid in seen:
-                raise ValueError(f"Duplicate case number: {cid}")
+                raise ValueError('Duplicate case number: ' + cid)
             seen.add(cid)
-            values = [str(v).strip() if v is not None else "" for v in row[:len(headers)]]
-            if not any(values[1:]):
-                excluded.append({"id": cid, "reason": "number_only"})
+            fields = {k: str(v).strip() if v is not None else '' for k, v in zip(headers, row)}
+            if not any(v for k, v in fields.items() if k != '编号'):
+                excluded.append({'id': cid, 'reason': 'number_only'})
                 continue
-            label = values[-1]
-            if label in ("", "/", "unknown", "不明"):
-                excluded.append({"id": cid, "reason": "missing_treatment"})
+            missing = [k for k in LABEL_FIELDS if fields[k] in ('', '/', 'unknown', '不明')]
+            if missing:
+                excluded.append({'id': cid, 'reason': 'missing_labels', 'fields': missing})
                 continue
             paths = images.get(cid, [])
-            if not paths:
-                raise ValueError(f"Case {cid} has no image named {cid}.jpg or {cid}-N.jpg")
-            if len(paths) > 3:
-                raise ValueError(f"Case {cid} exceeds the existing three-image limit")
-            facts, metadata = {}, {}
-            for header, value in zip(headers[1:-1], values[1:-1]):
-                # Source names in this workbook contain patient names AND treatment labels.
-                # Preserve the column's existence without leaking either into model prompts.
-                if header in ("文件名", "图片名", "图像名", "姓名", "患者姓名"):
-                    metadata[header] = "[source metadata withheld; images bound by 编号]"
-                else:
-                    facts[header] = value or "未记录"
-            image_entries = []
+            if not paths or len(paths) > 3:
+                raise ValueError(f'Case {cid} needs one to three numbered images')
+            entries = []
             for path in paths:
                 with Image.open(path) as image:
                     image.verify()
-                image_entries.append({"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-            cases.append({"id": cid, "row": row_number, "facts": facts, "metadata": metadata,
-                          "images": image_entries, "reference_treatment": label})
+                entries.append({'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+            cases.append({'id': cid, 'row': row_number,
+                          'inputs': {k: fields[k] or '未记录' for k in INPUT_FIELDS['clinical']},
+                          'labels': {k: fields[k] for k in LABEL_FIELDS}, 'images': entries})
         return cases, excluded, headers
     finally:
         book.close()
+
+
+def public_case(case, input_mode):
+    if input_mode not in INPUT_FIELDS:
+        raise ValueError('Unknown input mode')
+    return {'id': case['id'], 'text': {k: case['inputs'][k] for k in INPUT_FIELDS[input_mode]},
+            'images': case['images']}
 
 
 def split_cases(cases, seed=42, test_ratio=0.2):
@@ -107,13 +112,6 @@ def split_cases(cases, seed=42, test_ratio=0.2):
         (test if len(test) < target else train).extend(c["id"] for c in group)
     train.extend(c["id"] for c in shuffled[-1])
     return {"train": train, "test": test}
-
-
-def public_case(case, mode, max_turns):
-    """This is the ONLY per-case document admitted to the Harness subprocess."""
-    return {"id": case["id"], "mode": mode, "max_turns": max_turns,
-            "facts": case["facts"], "metadata": case["metadata"],
-            "images": [i["path"] for i in case["images"]]}
 
 
 def treatment_metrics(prediction, reference):

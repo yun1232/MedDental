@@ -118,6 +118,9 @@ class CaseLibrary(MemoryStore):
         lesion_id = record_id(case["case_id"], case["domain"], "lesion")
         common = {"record_id": rid, "encounter_id": "published:" + lesion_id, "event_time": "unknown",
                   "source_ref": case["source_ref"], "source": "doctor", "review_status": "doctor_confirmed"}
+        if case.get('supervision') == 'offline_labels' and category in ('lesion', 'experience'):
+            # Dataset labels supervise the targets; they do not confirm model observations.
+            common.update(source='model' if category == 'lesion' else 'patient', review_status='unreviewed')
         if category == "lesion":
             value = {**common, "lesion_id": lesion_id,
                      "features": case.get("features") or {key: [] if key == "tooth_positions" else "unknown" for key in PHENOTYPE},

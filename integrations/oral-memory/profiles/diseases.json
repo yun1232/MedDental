@@ -1,23 +1,80 @@
 {
   "enamel-white-spot": {
     "name": "牙釉质白斑、氟斑牙与发育性矿化异常",
-    "phenotype_fields": ["tooth_positions", "site", "color", "surface", "border", "extent", "uniformity"],
-    "history_fields": ["orthodontic_history", "duration", "symptoms", "fluoride_exposure", "prior_treatment"],
-    "visual_limits": "本数据是牙齿表面牙釉质白斑，不是口腔黏膜白斑。按龋性白斑、氟斑牙和发育性/MIH进行证据比较。医生提供的ICDAS/Nyvad/mDDE是既有描述，不能凭照片补造分级或活动性。照片不能代替必要的临床检查。未知信息允许保留，不能强制套用黏膜病理或活检问卷。治疗只作为待专业复核的候选。",
-    "red_flags": ["患者报告明显疼痛", "明显缺损", "怀疑牙髓受累"]
+    "phenotype_fields": [
+      "tooth_positions",
+      "site",
+      "color",
+      "surface",
+      "border",
+      "extent",
+      "uniformity"
+    ],
+    "history_fields": [
+      "orthodontic_history",
+      "duration",
+      "symptoms",
+      "fluoride_exposure",
+      "prior_treatment"
+    ],
+    "visual_limits": "当前任务输入只有允许的患者文本和图像；病因及其ICDAS/Nyvad/mDDE等标注、治疗方案均为隐藏目标。不能凭照片补造临床检查或病理结论。按实际视觉不确定点选择裁剪或掩码复查，原图始终保留。",
+    "red_flags": [
+      "患者报告明显疼痛",
+      "明显缺损",
+      "怀疑牙髓受累"
+    ]
   },
   "oral-leukoplakia": {
     "name": "口腔白斑及相关口腔黏膜病变",
-    "phenotype_fields": ["site", "side", "color", "morphology", "surface", "border", "extent"],
-    "history_fields": ["duration", "symptoms", "smoking", "alcohol", "local_irritation", "prior_treatment", "pathology"],
+    "phenotype_fields": [
+      "site",
+      "side",
+      "color",
+      "morphology",
+      "surface",
+      "border",
+      "extent"
+    ],
+    "history_fields": [
+      "duration",
+      "symptoms",
+      "smoking",
+      "alcohol",
+      "local_irritation",
+      "prior_treatment",
+      "pathology"
+    ],
     "visual_limits": "口内照片只能支持可见表征。不能从照片确认病理、不典型增生、恶变、触诊硬度或可擦除性。",
-    "red_flags": ["持续溃疡", "快速变化", "明显出血", "患者报告硬结", "吞咽或呼吸困难"]
+    "red_flags": [
+      "持续溃疡",
+      "快速变化",
+      "明显出血",
+      "患者报告硬结",
+      "吞咽或呼吸困难"
+    ]
   },
   "general-medical": {
     "name": "通用医学辅助评估",
-    "phenotype_fields": ["anatomical_site", "appearance", "distribution", "extent"],
-    "history_fields": ["duration", "symptoms", "prior_diagnosis", "examinations", "treatment", "outcome"],
+    "phenotype_fields": [
+      "anatomical_site",
+      "appearance",
+      "distribution",
+      "extent"
+    ],
+    "history_fields": [
+      "duration",
+      "symptoms",
+      "prior_diagnosis",
+      "examinations",
+      "treatment",
+      "outcome"
+    ],
     "visual_limits": "区分可见观察、患者陈述、报告与医生确认。图像不能替代必要的体检和检查。",
-    "red_flags": ["急剧恶化", "呼吸困难", "意识改变", "大量出血"]
+    "red_flags": [
+      "急剧恶化",
+      "呼吸困难",
+      "意识改变",
+      "大量出血"
+    ]
   }
 }

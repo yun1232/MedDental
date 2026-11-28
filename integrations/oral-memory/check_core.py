@@ -22,7 +22,7 @@ def main():
             if not (root / patch).is_file():
                 problems.append(f"missing dependency patch: {patch}")
     for name in ["apps/cli/src/bin.ts", "apps/web/package.json", "python/sdk-runtime/package.json",
-                 "apps/cli/config/examples/mcp-memory/oral-patient.cordis.yml"]:
+                 "train.py", "test.py", "integrations/oral-memory/vision_loop.py"]:
         if not (root / name).is_file():
             problems.append(f"missing entry: {name}")
     refinement = json.loads(Path(__file__).with_name("medical-refinement.json").read_text())

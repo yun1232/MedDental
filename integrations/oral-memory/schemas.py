@@ -98,40 +98,6 @@ FEEDBACK = obj({"event_id": text(), "retrieval_id": text(), "reference": REFEREN
 FREQUENCY = obj({"reference": REFERENCE, "frequency": choice("normal", "low_frequency"),
                  "protected": {"type": "boolean"}, "reason": text()},
                 ("reference", "frequency", "protected", "reason"))
-OBSERVATION = obj({"field": text(), "status": choice("known", "uncertain", "denied", "deferred", "conflict"),
-                   "value": text(empty=True), "source_ref": text(),
-                   "resolves_conflict": {"type": "boolean"}, "event_time": text(),
-                   "memory_refs": {"type": "array", "items": REFERENCE, "maxItems": 20}},
-                  ("field", "status", "value", "source_ref", "memory_refs"))
-CASE = obj({"encounter_id": text()}, ("encounter_id",))
-PATIENT_TURN = obj({
-    "encounter_id": text(), "event_id": text(), "expected_revision": {"type": "integer", "minimum": 0},
-    "message": text(), "intent": choice("provide_information", "ask_question", "pause"),
-    "observations": {"type": "array", "items": OBSERVATION, "maxItems": 30},
-    "writes": {"type": "array", "items": obj({"category": choice("lesion", "patient_experience", "experience", "care"),
-        "record": {"type": "object", "properties": {}, "additionalProperties": True},
-        "expected_version": {"type": "integer", "minimum": 0}},
-        ("category", "record", "expected_version")), "maxItems": 30},
-    "doctor_answers": {"type": "array", "items": obj({"record_id": text(),
-        "version": {"type": "integer", "minimum": 1}, "answer": text(),
-        "sufficient": {"type": "boolean"}, "source_ref": text()},
-        ("record_id", "version", "answer", "sufficient", "source_ref")), "maxItems": 10},
-}, ("encounter_id", "event_id", "expected_revision", "message", "intent", "observations", "writes", "doctor_answers"))
-PATIENT_DECIDE = obj({"encounter_id": text(), "event_id": text(), "expected_revision": {"type": "integer", "minimum": 0},
-    "retrieval_id": text(), "question": text(), "field": text(), "case_refs": {"type": "array", "items": REFERENCE, "maxItems": 12}},
-    ("encounter_id", "event_id", "expected_revision", "retrieval_id", "question", "field", "case_refs"))
-DOCTOR_SUBMIT = obj({
-    "encounter_id": text(), "event_id": text(), "expected_revision": {"type": "integer", "minimum": 0},
-    "confirmed": {"type": "boolean"}, "note": RECORDS["doctor"],
-    "expected_note_version": {"type": "integer", "minimum": 0}, "target_field": text(empty=True),
-    "observations": {"type": "array", "items": OBSERVATION, "maxItems": 30},
-    "updates": {"type": "array", "items": obj({"category": choice("lesion", "patient_experience", "experience", "care"),
-        "record": {"type": "object", "properties": {}, "additionalProperties": True},
-        "expected_version": {"type": "integer", "minimum": 0}},
-        ("category", "record", "expected_version")), "maxItems": 30},
-}, ("encounter_id", "event_id", "expected_revision", "confirmed", "note", "expected_note_version", "target_field", "observations", "updates"))
-
-
 class MemoryError(ValueError):
     """An actionable domain error that may be returned to an MCP caller."""
 
@@ -189,9 +155,6 @@ def tools(role):
     result.extend([
         {"name": "put_patient_experience", "description": "Persist one unified patient experience: oral symptoms/habits or care/examination/treatment/follow-up. event_kind selects the subtype; source, versions and original feedback references are preserved.", "inputSchema": PATIENT_EXPERIENCE_WRITE},
         {"name": "get_patient_experience", "description": "Read one unified patient experience using its stable storage_reference; oral/care records remain one business category.", "inputSchema": PATIENT_EXPERIENCE_GET},
-        {"name": "case_state", "description": "Read persistent inquiry fields, pending questions and case revision.", "inputSchema": CASE},
-        {"name": "patient_decide", "description": "Patient communication agent persists one question grounded in retrieved cases, with receipt references and exact case revision. Use after patient_turn returns decide_from_cases.", "inputSchema": PATIENT_DECIDE},
-        {"name": "patient_turn", "description": "Commit extracted patient information and memory writes atomically; return one next question with memory context. Use event_id for retry and the current case revision.", "inputSchema": PATIENT_TURN},
         {"name": "memory_feedback", "description": "Record actual use of a delivered memory reference. Patient callers may report used only; doctor feedback controls utility. Scores are never supplied by the model.", "inputSchema": FEEDBACK},
         {"name": "retrieve", "description": (
             "Select purpose=visual for patient-experience-only retrieval before visual analysis; purpose=diagnosis for lesion descriptors plus patient experience after visual analysis. The default legacy mode retains historical clients: stage 1 recalls lesion descriptors; stage 2 "
@@ -211,7 +174,6 @@ def tools(role):
     ])
     if role == "doctor":
         result.extend([
-            {"name": "doctor_submit", "description": "Submit an explicitly confirmed doctor note, optional corrections and inquiry updates atomically.", "inputSchema": DOCTOR_SUBMIT},
             {"name": "set_frequency", "description": "Set normal or low_frequency and protection; no memory deletion exists.", "inputSchema": FREQUENCY},
         ])
     return result

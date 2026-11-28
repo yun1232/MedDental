@@ -1,3 +1,5 @@
+历史记录：患者/医生客户端与旧 SDK 流程已于 2026-11-28 退出当前主流程。现入口为根目录 train.py、test.py，详见 README.zh.md 和 integrations/oral-memory/BATCH.zh.md。
+
 # MedDental 医疗专用精简版
 
 以本次上传的 `MedDental-refined(1).zip` 为实际基线重建。上传包没有上一轮未保存的精确删除清单，因此本次的 44 个包是按当前功能边界和依赖核对后重建，不能视为对旧清单逐项复原。

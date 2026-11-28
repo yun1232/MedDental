@@ -1,21 +1,15 @@
-# Batch verification — 2026-11-28
+# Offline Python verification — 2026-11-28
 
-The offline entry points reuse `runMedicalConsultation`; Python does not implement a replacement model loop. Root SDK tools are scoped to `batch_run`, and both evidence and simulated-patient children use isolated presets. Trusted repository YAML expressions are materialized before SDK startup because the CLI/preset validators require literal module names.
+The application was replaced with direct Python entry points (`train.py`, `test.py`). Patient/doctor portals, patient simulation, questionnaire routing, the medical Harness bridge and Node SDK batch launchers were removed. Retained upstream Harness/vendor packages were not rewritten.
 
-Validated with the supplied workbook: 53 labeled cases, a stable 42/11 train/test split, numeric image binding (including both images for case 44), and explicit exclusion of empty or unlabeled rows. Original filenames are withheld because they contain patient names and treatment hints.
+Validation uses 16 retained native storage tests and 14 offline application tests. The tests exercise strict field allowlists and two hidden labels; deterministic case/image splits; actual crop and mask pixels; unchanged original images; repeated-region and no-new-evidence stopping; real native case publication/retrieval/decay; current-case and identical-image exclusion; SQLite read-only evaluation; failure rollback; and completed-case resume without repeated model calls.
 
-Checks:
+An end-to-end regression starts a synthetic local OpenAI-compatible model endpoint, then executes the real root `train.py` and `test.py` commands for BOTH `history` and `clinical` modes. Each episode follows crop -> mask -> finish. Runtime uses Python and direct model API calls, with no project frontend/backend, Node/SDK or patient/doctor service. The synthetic endpoint is test infrastructure only.
 
-- `pnpm test:oral` passed: launcher checks, source integrity, the complete Python suite, MCP stdio integration, doctor HTTP/DOM behavior, patient preset, existing Harness team, batch boundary tests and both SDK modes.
-- Python business suite: 109 tests passed, including real store/retrieval/teacher publication, label isolation, independent frozen test copies and resume behavior.
-- Focused Harness suites: 13 tests passed (10 existing workflow checks and 3 batch information-boundary checks).
-- Real SDK/CLI/provider smoke passes for doctor and patient modes using a synthetic local OpenAI-compatible SSE server. Patient mode completes a real question/answer cycle. This smoke also passed with the host native addon temporarily unavailable: batch conversations are ephemeral; the existing medical database and episode files hold durable evidence.
-- No paid or external model calls were made; no real-data model accuracy or treatment success is reported.
+The supplied workbook was validated in both input modes: 53 complete labeled cases, 42 training and 11 test cases at seed 42. Current-case 病因 and 治疗方案 remain targets; 边界 and all unlisted text columns are not model inputs. Empty/unlabeled rows are listed explicitly.
 
-Broader baseline limitations observed during validation:
+No real or paid model experiment was run, and no real-data accuracy or clinical treatment success is claimed. Test metrics measure agreement with reference labels, not clinical reliability.
 
-- Full artifact build cannot complete in this environment: the primary Node installation lacks development headers. A separate host-library build also reports type errors in unchanged inspector, timeline, Typert test, release and primary-runtime test files. These unrelated files were not changed. The batch SDK source launcher avoids requiring a complete Web artifact build.
-- `pnpm test:framework`: 309/311 passed. The existing HTTP credential probe and HTTP negotiation retry tests time out (`credentials.spec.ts`, `negotiation-lifecycle.spec.ts`). The batch entry does not use MCP HTTP transport, and these tests/code were not modified.
-- Offline dependency installation recognizes the updated workspace lock entry but cannot finish its supply-chain metadata audit because the local package mirror lacks registry metadata. Runtime checks used installed dependencies; a fresh installation requires access to its normal registry.
+The optional original stdio memory-storage endpoint remains covered by its retained compatibility test; the new train/test pipeline never starts it. Its former patient inquiry tools are removed. Historical storage table/record identities and memory revisions are retained without deleting user memory.
 
-The new `@deepseek-ai/dsh-tools` workspace dependency and root lock importer are kept in sync. Source integrity hashes include the batch files. Runtime outputs, labels, patient transcripts, snapshots and credentials are not committed.
+The previous full Harness build/type-check and MCP HTTP timeout issues belong to the retained upstream framework, which the new Python entry points do not invoke. This change does not claim to repair that separate framework. The application checks are the Python business suite, two real-data dry runs, whitespace check and source-integrity check.
